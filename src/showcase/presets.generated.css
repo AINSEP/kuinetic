@@ -17,6 +17,12 @@
     --kui-slideshow-ease: ease;
   }
 
+  [data-kui-fx~='carousel-warp'] {
+    --kui-slideshow-transition: warp;
+    --kui-slideshow-duration: 1200ms;
+    --kui-slideshow-ease: cubic-bezier(0.7, 0, 0.2, 1);
+  }
+
   [data-kui-fx~='compare'] {
     --kui-compare-duration: 3s;
   }
@@ -68,6 +74,7 @@
 @layer kui.cloak {
   html[data-kui-cloak] :is([data-kui~='carousel-fade'], [data-kui~='carousel-fade,'], [data-kui~=',carousel-fade'], [data-kui~=',carousel-fade,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-slide'], [data-kui~='carousel-slide,'], [data-kui~=',carousel-slide'], [data-kui~=',carousel-slide,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='carousel-warp'], [data-kui~='carousel-warp,'], [data-kui~=',carousel-warp'], [data-kui~=',carousel-warp,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='compare'], [data-kui~='compare,'], [data-kui~=',compare'], [data-kui~=',compare,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='video-hero-slideshow'], [data-kui~='video-hero-slideshow,'], [data-kui~=',video-hero-slideshow'], [data-kui~=',video-hero-slideshow,']):not([data-kui-state]) {
     opacity: 0;
@@ -85,6 +92,7 @@
   @media (prefers-reduced-motion: reduce) {
   html[data-kui-cloak] :is([data-kui~='carousel-fade'], [data-kui~='carousel-fade,'], [data-kui~=',carousel-fade'], [data-kui~=',carousel-fade,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='carousel-slide'], [data-kui~='carousel-slide,'], [data-kui~=',carousel-slide'], [data-kui~=',carousel-slide,']):not([data-kui-state]),
+  html[data-kui-cloak] :is([data-kui~='carousel-warp'], [data-kui~='carousel-warp,'], [data-kui~=',carousel-warp'], [data-kui~=',carousel-warp,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='compare'], [data-kui~='compare,'], [data-kui~=',compare'], [data-kui~=',compare,']):not([data-kui-state]),
   html[data-kui-cloak] :is([data-kui~='video-hero-slideshow'], [data-kui~='video-hero-slideshow,'], [data-kui~=',video-hero-slideshow'], [data-kui~=',video-hero-slideshow,']):not([data-kui-state]) {
       opacity: 1;

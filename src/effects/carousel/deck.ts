@@ -265,6 +265,8 @@ export interface DeckLayout {
   }
   /** A second drag axis, for a shape that has one. */
   pitch?: { begin(): void; move(turns: number): void }
+  /** `'y'` when the ring is a drum (`axis:x`) and a vertical drag turns it. */
+  dragAxis?: 'x' | 'y'
   /**
    * The shape's own reading of a circular offset, when it is not the offset itself.
    *
@@ -301,7 +303,7 @@ interface SlotLedgers {
 
 function dragCoordinates(layout: DeckLayout) {
   return { positionAt: layout.view?.positionAt, keyboardSign: layout.view?.keyboardSign, pitch: layout.pitch,
-    bound: layout.view?.bound }
+    bound: layout.view?.bound, dragAxis: layout.dragAxis }
 }
 
 /** The view of a shape that places its cards frame by frame, rather than leaving that to CSS. */

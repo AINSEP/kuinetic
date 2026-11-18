@@ -161,6 +161,7 @@ describe('requiresOwnSubtree — the reaching-selector set is re-derived, not tr
         'carousel-orbit',
         'carousel-slide',
         'carousel-stack',
+        'carousel-warp',
         'checkbox-draw',
         'compare',
         'device-frame',

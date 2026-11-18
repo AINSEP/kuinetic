@@ -8,7 +8,7 @@ A composition of several of these names can itself be given a name, with no buil
 `data-kui-define` — see [Architecture §3.3](?doc=design#33-named-bundles-data-kui-define). Those
 names are yours and are not listed here.
 
-**Counts:** **313** named effects, **48 primitive families** — the table below enumerates all 48,
+**Counts:** **314** named effects, **48 primitive families** — the table below enumerates all 48,
 so this is a count rather than a floor. Note that 48 names come from a
 single family (the entrance/exit matrix), so name count is not work count. The families below are
 the architectural grouping, not registry ids — the registry holds more entries than that, because a
@@ -700,6 +700,11 @@ Primitives 21, 22, plus CSS.
 
 The four dot followers accept `over:` for descendants supplying per-target shapes and content.
 
+`cursor-spotlight gradient:flashlight` darkens the box and lights a circle round the pointer. The
+veil stays up at rest, with the light parked in the middle on setup, pointerleave and blur.
+`--kui-spotlight-size` sets the light's radius (default `180px`) and `--kui-spotlight-veil` the veil
+colour (default `rgb(0 0 0 / 0.86)`). Touch screens have no fine pointer, so the box stays fully lit.
+
 `cursor-trail images:'.trail-source' spacing:60px` samples pointer distance into a pool of at most
 24 fresh inert photos inside the host, underneath its text. Images must be descendants of the host;
 their source markup stays untouched. `--kui-trail-width` and `--kui-trail-height` size the photos.
@@ -1059,8 +1064,6 @@ Primitives 1, 5, 35, 36, 47, plus the View Transitions API.
 > anything and `view-swap` skips the transition entirely — the page still navigates and still
 > swaps, it just cuts.
 
-> **† Not yet implemented.** `page-morph` is documented here but is not registered in `src/effects` — `data-kui` will not resolve it. Verified against the live registry.
-
 ---
 
 ## M. Navigation — 8 names
@@ -1242,6 +1245,19 @@ provide the ring recipe; these are flat strokes with no tube shading.
 > </div>
 > ```
 >
+> **`axis:x` turns the ring into a drum about a horizontal axis.** The next slide waits at the top
+> and rolls down to the front as the position grows. The radius comes from the card height, the
+> front card sits at its true size, and the host reserves the drum's projected height and scales
+> itself down to fit the viewport (unless an ancestor clips vertical overflow). `tilt:` looks at
+> the drum from the side, so most drums want `tilt:0deg`. Mouse and pen drag vertically; touch keeps
+> scrolling the page, so a drum never traps a phone. ArrowUp and ArrowDown step it. It needs an
+> outward depth ring: not with `shape:`, `plane:screen` or `carousel-3d-inside` (it warns and is
+> ignored).
+>
+> ```html
+> <div data-kui="carousel-3d axis:x tilt:0deg spin:30s hover:none pause:.drum-pause" aria-label="Work"> … </div>
+> ```
+>
 > **`carousel-3d-inside` is the concave one, and it is a separate name rather than a parameter.**
 > It puts the camera at the centre of the ring instead of outside it, so the slides surround the
 > viewer. It defaults to `arc:120deg` and `facing:camera`, because from inside a *full* ring two
@@ -1329,6 +1345,31 @@ provide the ring recipe; these are flat strokes with no tube shading.
 > content that starts by itself and lasts more than five seconds needs a way to stop it (WCAG
 > 2.2.2), and hover and focus only cover some visitors. A paused deck stays paused when you change
 > its `data-kui`, as long as the new value names a `pause:` control too.
+
+> **Change the effect on a live deck: it glides.** Rewrite `data-kui` on a running carousel and the
+> cards fly from where they are to their new places, with no jump on the first frame. That includes
+> moving into and out of `carousel-loop`. A card caught mid-glide or mid-step starts from where it
+> is now. Changing the attribute needs a running animator with `observe: true`
+> (`kuinetic({ observe: true }).start()`); without it nothing watches the attribute.
+>
+> ```html
+> <div id="deck" data-kui="carousel-3d pause:#pause" aria-label="Work"> … </div>
+> <button id="pause" type="button">Pause</button>
+> <button type="button" data-effect="carousel-loop pause:#pause">Row</button>
+> <button type="button" data-effect="carousel-3d pause:#pause">Ring</button>
+> <script>
+>   document.querySelectorAll('[data-effect]').forEach((button) =>
+>     button.addEventListener('click', () => {
+>       document.getElementById('deck').setAttribute('data-kui', button.dataset.effect)
+>     }))
+> </script>
+> ```
+>
+> A deck paused with `pause:` stays paused when `data-kui` is rewritten on the same element, as
+> long as the new value still names a `pause:` control that exists. Without one, the new deck
+> starts running. **Slideshows do not carry a pause over.** `carousel-fade`, `carousel-slide` and
+> `video-hero-slideshow` keep their own pause state, so a rewritten `data-kui` starts them playing
+> again, paused only if the visitor has reduced motion.
 
 > **Open the cards in the lightbox: `lightbox:true`.** A click on a card opens the shared lightbox
 > gallery at that card, with every card of the deck in it — prev/next buttons, the arrow, Home and
@@ -1431,6 +1472,8 @@ provide the ring recipe; these are flat strokes with no tube shading.
 > widest slide and largest centre-to-centre step (room to recycle between animated steps).
 > Otherwise it becomes a static, locally scrollable strip with native touch scrolling;
 > resize rechecks coverage. Direct images can opt into inert copies with `copies:auto` and coast with `release:free`.
+> `copies:auto` works only when every slide is a direct `<img>`; with any other slide it warns and
+> keeps the original strip.
 > In that static fallback, deck arrow keys are consumed without visible motion, and spin/autoplay
 > still tick invisibly. While looping, keyboard-visible focus centres its slide without moving on
 > mouse focus. Measured relayouts and jumps beyond the recycling room land without a transition.
@@ -1877,7 +1920,7 @@ of, not something it does.
 
 ---
 
-## T. Showcase — 10 names
+## T. Showcase — 11 names
 
 The showcase module: pre-built presentation widgets in `src/showcase/`, the one place this library owns UI
 *behaviour* rather than only motion — dialogs, an ARIA carousel, popovers, the handful of
@@ -1887,7 +1930,7 @@ seam that lets it become its own `<script>` tag later is an internal detail this
 need to track.
 
 `device-frame` · `lightbox` · `video-lightbox` · `compare` · `hotspots` ·
-`carousel-fade` · `carousel-slide` · `video-hero-slideshow` · `scroll-story`
+`carousel-fade` · `carousel-slide` · `carousel-warp` · `video-hero-slideshow` · `scroll-story`
 · `slow-mo`
 
 > **A device chrome, drawn in CSS around whatever media you already have.** Wraps one image or
@@ -2039,7 +2082,9 @@ need to track.
 > **No-JS:** The image is followed by the plain numbered or bulleted list of notes, fully readable by crawlers and screen readers.
 
 > **Accessible slide shows.** `carousel-fade` stacks slides and fades between them;
-> `carousel-slide` moves a horizontal row. `video-hero-slideshow` uses the fade layout with
+> `carousel-slide` moves a horizontal row. `carousel-warp` jumps to hyperspace: star streaks burst
+> from `--kui-warp-origin`, the old slide flies past and the new one rushes in. `transition:`
+> takes `fade|slide|warp`, so any slideshow can warp. `video-hero-slideshow` uses the fade layout with
 > seven-second autoplay and dots. The existing `video-hero` name remains the single background
 > video preset from section G.
 >
@@ -2057,6 +2102,21 @@ need to track.
 > `controls:none` or authored controls because there would be no pause button. `hover:none` keeps
 > it running under a resting pointer; keyboard focus and the pause button still stop it.
 > Reduced-motion visitors start paused; a user pause stays in effect until they press Play.
+>
+> **Warp and composition.** Every slideshow stamps `data-kui-slideshow-leaving` on the slide it
+> just left and `data-kui-slideshow-arriving` on the one that arrived (nothing on first render), for
+> author CSS in any mode. `--kui-warp-origin` is the vanishing point (default `50% 50%`);
+> `--kui-warp-color` is the streak colour (defaults to a `starfield`'s star colour). Reduced motion
+> replaces the jump with a 200ms fade, and forced colours drop the streaks. The pause button also
+> holds every other clock-driven effect composed on the same host, so
+> `data-kui="starfield, carousel-warp autoplay:6s"` stops the stars with the slides; decks with a
+> `pause:` control do the same.
+>
+> ```html
+> <section data-kui="starfield, carousel-warp autoplay:6s" aria-label="Field notes">
+>   <ul><li>First</li><li>Second</li></ul>
+> </section>
+> ```
 >
 > **No-JS:** Slides remain a plain visible list in document order, with no inserted controls.
 
@@ -2117,13 +2177,13 @@ need to track.
 | Q Discrete open/close | 6 |
 | R Static transforms | 1 |
 | S Materials | 1 |
-| T Showcase | 10 |
+| T Showcase | 11 |
 | Generic tween | 2 |
-| **Total shipped** | **313** |
+| **Total shipped** | **314** |
 | Documented but not yet shipped | 3 |
 
-Registry renderer split: **165 `css-keyframes`** · **143 `javascript`** (including setup-only widgets).
-That ratio is the whole architecture — roughly 70% of the catalog is keyframes plus a
+Registry renderer split: **165 `css-keyframes`** · **149 `javascript`** (including setup-only widgets).
+That ratio is the whole architecture — over half of the catalog is keyframes plus a
 metadata row, and ships with zero runtime JS on browsers with native timelines.
 
 ---

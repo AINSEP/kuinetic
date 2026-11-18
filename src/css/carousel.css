@@ -14,6 +14,8 @@
  *   --kui-step-position on the host, this effect — the live place, as a real number
  *   --kui-item-width    on the host, this effect — a measured card width, for the derived radius
  *   --kui-ring-fit      on the host, `effects/carousel/fit.ts` — the largest radius that fits the page
+ *   --kui-shape-fit     on the host, `effects/carousel/shape-fit.ts` — the scale a helix, sphere or drum fits by
+ *   --kui-shape-height  on the host, `effects/carousel/shape-fit.ts` — the height those shapes reserve
  *
  * INVARIANT: a keyframe may only write properties belonging to its primitive's declared channels.
  * `test/css-invariants.test.ts` enforces this against these files. This one compiles no keyframes
@@ -581,6 +583,42 @@
   [data-kui-row-copy][data-kui-ring-wrap='true'],
   [data-kui-step-offset][data-kui-ring-wrap='true'] {
     transition: none;
+  }
+
+  /*
+   * --- the drum: axis:x (channel: skew) ---
+   *
+   * The same ring turned about the horizontal axis: the next card waits at the top and rolls down
+   * to the front as the position grows. Keyed on the attribute the runtime publishes, and written
+   * as an override at the slot rules' own specificity, so it wins by coming later in this layer
+   * (the billboard child below matches the four-attribute selector it overrides, same reason).
+   *
+   * The whole drum is pulled back by its radius (`translateZ(-r)` outermost) so the front card sits
+   * at z = 0, at its true size, rather than magnified by the radius towards the camera. The radius
+   * comes from card HEIGHT, since that is the dimension the cards stack along. The pull-back is
+   * why the drum ignores `--kui-ring-fit` (a horizontal radius cap that does not model it): it
+   * fits by scaling the host instead, with `--kui-shape-fit` and `--kui-shape-height` written by
+   * `shape-fit.ts`, the same machinery as the helix and the sphere.
+   */
+  [data-kui-ring-axis='x'] {
+    scale: var(--kui-shape-fit, 1);
+    min-block-size: var(--kui-shape-height, auto);
+  }
+  [data-kui-ring-axis='x'] [data-kui-step-offset] {
+    --kui-ring-wanted: var(
+      --kui-radius,
+      calc(
+        (var(--kui-item-height, 180px) + var(--kui-gap, 24px)) /
+          (2 * tan(clamp(0.5deg, var(--kui-ring-spacing) / 2, 60deg)))
+      )
+    );
+    --kui-ring-radius: var(--kui-ring-wanted);
+    transform: translateZ(calc(-1 * var(--kui-ring-radius))) rotateY(var(--kui-ring-tilt))
+      rotateX(var(--kui-ring-angle)) translateZ(var(--kui-ring-radius));
+  }
+  [data-kui-ring-axis='x'][data-kui-ring-facing='camera']:not([data-kui-ring-plane='screen'])
+    [data-kui-step-offset] > * {
+    transform: rotateX(calc(-1 * var(--kui-ring-angle))) rotateY(calc(-1 * var(--kui-ring-tilt)));
   }
 
   [data-kui-ring-shape='helix'] {

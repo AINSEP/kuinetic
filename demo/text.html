@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic — Text</title>
-<meta name="description" content="Twenty-six data-kui text primitives — segmentation, continuous motion, typing, resolve, color and line, variable font, and structural effects — with one accessible reading of the text preserved throughout." />
+<meta name="description" content="Thirty-two data-kui text primitives — segmentation, continuous motion, typing, resolve, color and line, variable font, structural effects and label swaps — with one accessible reading of the text preserved throughout." />
 <script>
   ;(function () {
     var KEY = 'kuinetic-showcase-theme'
@@ -24,14 +24,15 @@
 <!-- Inter is self-hosted (see demo/fonts.css) — no fonts.googleapis.com hop for the page font. -->
 <link rel="preload" href="./assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="./fonts.css" />
-<!-- Roboto Flex carries real wght/wdth/slnt axes. Inter (the page font) ships wght only, so
+<!-- Roboto Flex carries real wght/wdth/slnt/GRAD axes. Inter (the page font) ships wght only, so
      `font-stretch` on it animates its computed value while painting nothing — the variable-font
-     cards below need a font that actually has the axes they are demonstrating. Only the var-font
+     cards below need a font that actually has the axes they are demonstrating. Google Fonts serves
+     only the axes a URL names, so `var-axis axis:GRAD` needs GRAD listed here. Only the var-font
      cards far below the fold use it, so it is loaded non-blocking (the print/onload swap trick)
      instead of costing every page load a second render-blocking cross-origin request; the
      preconnects above stay, since this still needs them. -->
-<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wght,wdth,slnt@100..1000,25..151,-10..0&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
-<noscript><link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wght,wdth,slnt@100..1000,25..151,-10..0&display=swap" rel="stylesheet" /></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:slnt,wdth,wght,GRAD@-10..0,25..151,100..1000,-200..150&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+<noscript><link href="https://fonts.googleapis.com/css2?family=Roboto+Flex:slnt,wdth,wght,GRAD@-10..0,25..151,100..1000,-200..150&display=swap" rel="stylesheet" /></noscript>
 <link rel="stylesheet" href="./kuinetic.css" />
 <link rel="stylesheet" href="./system.css" />
 <script defer src="./nav.js"></script>
@@ -126,7 +127,11 @@
     font-size: clamp(1.05rem, 0.55vw + 0.92rem, 1.3rem); font-weight: 600;
     line-height: 1.35; letter-spacing: -0.01em; max-width: 30ch;
   }
-  /* Only these three cards switch face — the rest of the page stays on Inter. */
+  /* The mark carries its own ink once the yellow band is under it. Dark mode's white text would
+     sit on that band at under 2:1, and dark ink before the sweep would vanish on a dark card. */
+  .highlight-mark { color: #0b0a0a; transition: color 240ms ease; }
+  :root[data-theme='dark'] .highlight-mark:not([data-kui-state='finished']) { color: var(--fg); }
+  /* Only these four cards switch face — the rest of the page stays on Inter. */
   .demo-card-text.is-variable .stage {
     font-family: 'Roboto Flex', 'Inter', ui-sans-serif, system-ui, sans-serif;
     font-size: clamp(1.15rem, 0.7vw + 0.98rem, 1.5rem);
@@ -184,6 +189,29 @@
   .demo-card-wide .marquee-viewport .stage[data-kui-fx~="marquee-scroll-linked"] {
     animation-timeline: scroll(root) !important;
   }
+
+  /* The label-swap cards hold a bare button: the swap's clip is the button's box, and its travel is
+     one label height, so any padding here would leave the outgoing copy showing inside the clip. */
+  .demo-card-text .swap-label {
+    padding: 0; border: 0; background: none; color: inherit; cursor: pointer;
+    font-family: inherit; font-size: 1.85rem; font-weight: 800; line-height: 1.15; white-space: nowrap; max-width: none;
+  }
+  .swap-label:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+  /* A touch screen has no hover. The tap handler at the bottom of the page holds the swap instead. */
+  .swap-label[data-swapped] { --kui-label-swap-shown: 1; }
+
+  .draw-line { display: block; width: 100%; margin-top: 0.15rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+  .curve-line { display: block; width: 100%; fill: currentColor; font-size: 34px; font-weight: 600; }
+
+  .motion-pause {
+    display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 1rem;
+    padding: 0.5rem 0.95rem; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 0.8rem; font-weight: 600;
+    background: transparent; color: var(--fg); border: 1px solid var(--border);
+  }
+  .motion-pause:hover { border-color: var(--fg); }
+  .motion-pause[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .motion-pause svg { width: 12px; height: 12px; fill: currentColor; }
 </style>
 </head>
 <body>
@@ -219,7 +247,7 @@
       <section class="demo-hero" data-od-id="hero">
         <div class="hero-copy">
           <p class="kicker" data-kui="split-chars stagger:60ms on:load">CSS Animations · Text</p>
-          <h1 data-kui="text-reveal-mask 2000ms">Twenty-six ways to move a sentence.</h1>
+          <h1 data-kui="text-reveal-mask 2000ms">Thirty-two ways to move a sentence.</h1>
           <div class="demo-hero-actions" data-kui="fade-up 700ms 160ms">
             <a href="#matrix" class="btn btn-primary">Scroll the matrix</a>
             <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
@@ -227,7 +255,7 @@
         </div>
         <div class="hero-media hero-media-type">
           <p class="hero-type-word" data-kui="text-wave on:load">MOVE</p>
-          <p class="hero-type-sub" data-kui="typewriter on:load">twenty-six primitives, one HTML attribute.</p>
+          <p class="hero-type-sub" data-kui="typewriter on:load">thirty-two primitives, one HTML attribute.</p>
         </div>
       </section>
 
@@ -306,7 +334,7 @@
           <p data-kui="typewriter">A caret, a cursor, a sentence assembling itself in real time.</p>
         </div>
         <div class="matrix-group">
-          <p class="matrix-group-label">Typing — 2</p>
+          <p class="matrix-group-label">Typing — 4</p>
           <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="typewriter">This line types itself out, once.</p></div>
@@ -316,7 +344,16 @@
               <div class="stage-wrap"><p class="stage" data-kui="typewriter-loop on:load">Typed, deleted, retyped, forever.</p></div>
               <figcaption>data-kui="typewriter-loop on:load"</figcaption>
             </figure>
+            <figure class="demo-card demo-card-text demo-card-text-wide" data-show-code>
+              <div class="stage-wrap"><p class="stage" style="font-size: 2.15rem; font-weight: 800" data-kui="typewriter words:'BREAK|APART|AGAIN' erase:scatter step:70ms interval:500ms on:load">BREAK</p></div>
+              <figcaption>data-kui="typewriter words:'BREAK|APART|AGAIN' erase:scatter step:70ms interval:500ms on:load"</figcaption>
+            </figure>
+            <figure class="demo-card demo-card-text demo-card-text-wide" data-show-code>
+              <div class="stage-wrap"><p class="stage" data-kui="typewriter rhythm:natural step:65ms loop:true on:load">Fast, then slow; it stops at the punctuation. Like fingers.</p></div>
+              <figcaption>data-kui="typewriter rhythm:natural step:65ms loop:true on:load"</figcaption>
+            </figure>
           </div>
+          <button type="button" class="motion-pause" id="typing-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause</span></button>
         </div>
       </section>
 
@@ -353,7 +390,7 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Color — 4</p>
+          <p class="matrix-group-label">Color — 5</p>
           <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="gradient-shimmer on:load">A sheen that never stops sweeping.</p></div>
@@ -368,6 +405,10 @@
               <figcaption>data-kui="highlight-sweep 500ms color:white on:hover" — point at me</figcaption>
             </figure>
             <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap"><p class="stage">A marker runs behind <span class="highlight-mark" data-kui="highlight-sweep color:#e4f222">just these words</span> as I scroll in.</p></div>
+              <figcaption>data-kui="highlight-sweep color:#e4f222" — on a span, plays on scroll</figcaption>
+            </figure>
+            <figure class="demo-card demo-card-text" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="text-outline-fill 700ms">Outline first, then fills solid.</p></div>
               <figcaption>data-kui="text-outline-fill 700ms"</figcaption>
             </figure>
@@ -375,13 +416,34 @@
         </div>
 
         <div class="matrix-group">
-          <p class="matrix-group-label">Line — 1</p>
+          <p class="matrix-group-label">Line — 3</p>
           <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card demo-card-text" tabindex="0" data-show-code>
               <div class="stage-wrap"><p class="stage" style="display: inline-block" data-kui="underline-draw 500ms on:hover">Hover to draw my underline.</p></div>
               <figcaption>data-kui="underline-draw 500ms on:hover" — point at me</figcaption>
             </figure>
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap">
+                <div class="stage">
+                  A pen stroke, drawn as I scroll in.
+                  <svg class="draw-line" viewBox="0 0 100 10" aria-hidden="true">
+                    <path d="M2 6 C 32 1, 66 10, 98 5" pathLength="100" data-kui="draw-underline 900ms on:enter" />
+                  </svg>
+                </div>
+              </div>
+              <figcaption>data-kui="draw-underline 900ms on:enter"</figcaption>
+            </figure>
+            <figure class="demo-card demo-card-text demo-card-text-wide" data-show-code>
+              <div class="stage-wrap">
+                <svg class="curve-line" id="curve-line" viewBox="0 0 400 130" role="img" aria-label="Letters follow the line, flowing along a curve">
+                  <defs><path id="curve-line-path" d="M0 120 Q200 -30 400 120" /></defs>
+                  <text><textPath href="#curve-line-path" data-kui="text-path from:-382px to:0px 10s loop:true">Letters follow the line · Letters follow the line · Letters follow the line · </textPath></text>
+                </svg>
+              </div>
+              <figcaption>data-kui="text-path from:-382px to:0px 10s loop:true"</figcaption>
+            </figure>
           </div>
+          <button type="button" class="motion-pause" id="curve-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause</span></button>
         </div>
       </section>
 
@@ -390,12 +452,12 @@
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Variable font</h2>
           <p data-kui="text-reveal-up 600ms, var-slant 700ms 600ms on:hover">
-            Animates font-weight/stretch/style through Roboto Flex's variable axes — no matching
-            axis, no visible change.
+            Animates font-weight/stretch/style, or any axis by its tag, through Roboto Flex's
+            variable axes — no matching axis, no visible change.
           </p>
         </div>
         <div class="matrix-group">
-          <p class="matrix-group-label">Variable font — 3</p>
+          <p class="matrix-group-label">Variable font — 4</p>
           <div class="demo-grid" data-kui="cascade:90ms">
             <figure class="demo-card demo-card-text is-variable" tabindex="0" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="var-weight 700ms on:hover">Weight, thin to bold.</p></div>
@@ -408,6 +470,34 @@
             <figure class="demo-card demo-card-text is-variable" tabindex="0" data-show-code>
               <div class="stage-wrap"><p class="stage" data-kui="var-slant 700ms on:hover">Slant, upright to oblique.</p></div>
               <figcaption>data-kui="var-slant 700ms on:hover" — point at me</figcaption>
+            </figure>
+            <figure class="demo-card demo-card-text is-variable" tabindex="0" data-show-code>
+              <div class="stage-wrap"><p class="stage" data-kui="var-axis axis:GRAD from:-200 to:150 700ms on:hover">Grade, faint ink to heavy.</p></div>
+              <figcaption>data-kui="var-axis axis:GRAD from:-200 to:150 700ms on:hover" — point at me</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- LABEL SWAP -->
+      <section data-od-id="label-swap">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Label swap</h2>
+        </div>
+        <div class="matrix-group">
+          <p class="matrix-group-label">Label swap — 3</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap"><button type="button" class="stage swap-label" data-kui="masked-label-swap"><span data-kui-swap="from">$49</span><span data-kui-swap="to">$29</span></button></div>
+              <figcaption>data-kui="masked-label-swap" — point at me, or tap</figcaption>
+            </figure>
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap"><button type="button" class="stage swap-label" data-kui="masked-label-swap-x distance:120%"><span data-kui-swap="from">Sign up</span><span data-kui-swap="to">Join us</span></button></div>
+              <figcaption>data-kui="masked-label-swap-x distance:120%" — point at me, or tap</figcaption>
+            </figure>
+            <figure class="demo-card demo-card-text" data-show-code>
+              <div class="stage-wrap"><button type="button" class="stage swap-label" data-kui="masked-label-swap-diagonal"><span data-kui-swap="from">Explore</span><span data-kui-swap="to">Let's go</span></button></div>
+              <figcaption>data-kui="masked-label-swap-diagonal" — point at me, or tap</figcaption>
             </figure>
           </div>
         </div>
@@ -476,6 +566,39 @@
   <script src="./kuinetic.js" fetchpriority="high" data-kui-manual></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+
+    ;(function () {
+      // A touch screen never hovers, so a tap holds the label swap until the next tap.
+      document.querySelectorAll('.swap-label').forEach(button => button.addEventListener('click', () => {
+        if (window.matchMedia('(hover: none)').matches) button.toggleAttribute('data-swapped')
+      }))
+
+      function wirePause(button, setPaused) {
+        button.addEventListener('click', () => {
+          const paused = button.getAttribute('aria-pressed') !== 'true'
+          button.setAttribute('aria-pressed', String(paused))
+          button.querySelector('span').textContent = paused ? 'Play' : 'Pause'
+          setPaused(paused)
+        })
+      }
+
+      // Typing is JavaScript, so control() has no playhead to hold. Dropping the attribute settles
+      // each loop on its full text, and writing it back starts the loop again (`observe: true`).
+      const loops = new Map()
+      document.querySelectorAll('[data-od-id="typing"] :is([data-kui~="typewriter-loop"], [data-kui~="loop:true"], [data-kui~="erase:scatter"])')
+        .forEach(el => loops.set(el, el.getAttribute('data-kui')))
+      wirePause(document.getElementById('typing-pause'), paused => loops.forEach((spec, el) => {
+        if (paused) el.removeAttribute('data-kui')
+        else el.setAttribute('data-kui', spec)
+      }))
+
+      // text-path's timer is a native SVG animation, so the SVG's own clock holds it.
+      const curve = document.getElementById('curve-line')
+      wirePause(document.getElementById('curve-pause'), paused => {
+        if (paused) curve.pauseAnimations()
+        else curve.unpauseAnimations()
+      })
+    })()
   </script>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>

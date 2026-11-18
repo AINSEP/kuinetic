@@ -1,0 +1,1482 @@
+<!doctype html>
+<html lang="en" data-kui="smooth-scroll-to" data-kui-cloak>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>kUInetic — Carousels</title>
+<meta name="description" content="Every carousel, gallery and ticker in kUInetic in one place: rings, orbits, stacks, loops, slideshows, marquees, helixes and spheres, each one HTML attribute on a parent." />
+<script>
+  ;(function () {
+    var KEY = 'kuinetic-showcase-theme'
+    var theme = null
+    try {
+      var stored = localStorage.getItem(KEY)
+      if (stored === 'light' || stored === 'dark') theme = stored
+    } catch (e) {}
+    if (!theme) {
+      try { theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' } catch (e) {}
+    }
+    document.documentElement.dataset.theme = theme || 'light'
+  })()
+</script>
+<!-- Inter is self-hosted (see demo/fonts.css) — no fonts.googleapis.com hop, so no preconnect needed. -->
+<link rel="preload" href="./assets/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="./fonts.css" />
+<link rel="stylesheet" href="./kuinetic.css" />
+<link rel="stylesheet" href="./system.css" />
+<script defer src="./nav.js"></script>
+<style>
+  /* =====================================================================================
+     demo/carousels.html — page-local styles only. Tokens, header, buttons, kicker, footer, the
+     section rhythm and the "Show code" chip come from system.css. The library moves everything;
+     the rules below are layout and surface, plus the few recipes the catalog says are yours:
+     they read a number the library publishes and turn it into a look.
+     ===================================================================================== */
+
+  /* ---------- first section: the switcher ---------- */
+  .demo-hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; align-items: center; padding-bottom: clamp(2.5rem, 4vw, 4rem); }
+  @media (min-width: 1000px) { .demo-hero { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 3rem; } }
+  .demo-hero h1 { font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; max-width: 14ch; }
+  .hero-lede { margin-top: 1.1rem; color: var(--muted); max-width: 46ch; line-height: 1.6; }
+
+  /* The same pill as interactive.html's filter and sort buttons. */
+  .pill-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
+  .pill-row button {
+    padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--fg); font-size: 0.8rem; font-weight: 590;
+  }
+  .pill-row button:hover { border-color: var(--fg); }
+  .pill-row button.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  .hero-index {
+    margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.35rem 1.25rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .hero-index a { color: var(--muted); text-decoration: none; }
+  .hero-index a:hover, .hero-index a:focus-visible { color: var(--fg); }
+
+  /* A fixed stage, so a taller arrangement does not move the page and the cards with it. The one row is
+     pinned to the stage: a host taller than the stage (the orbit's square) stays centred on it, where an
+     auto row would grow and hang the host off the bottom. */
+  .switch-stage { height: 564px; overflow: clip; display: grid; grid-template-rows: minmax(0, 1fr); align-items: center; align-items: unsafe center; justify-items: center; }
+  /* One column: the pictures sit straight above their buttons, so a press never changes something off screen. */
+  @media (max-width: 999px) {
+    .demo-hero { gap: 0; }
+    .hero-copy { display: contents; }
+    /* 388 fits every arrangement with the 150px card. Below that the height follows the card down. */
+    .switch-stage { order: 1; margin-top: 0.5rem; height: clamp(256px, 48px + 57vw, 388px); }
+    .demo-hero .pill-row, .demo-hero .kui-contract, .demo-hero .hero-index { order: 2; }
+    .demo-hero .pill-row { margin-top: 0.5rem; }
+    .demo-hero .kui-contract { justify-self: start; }
+    /* The orbit's host is a square, 2 x radius + one card: too tall for this stage, so it shrinks whole, around its centre. */
+    .switch-deck[data-kui~='carousel-orbit'] { scale: 0.67; }
+  }
+  .switch-deck {
+    --card-w: clamp(84px, 24vw, 150px); width: 100%; gap: 20px; cursor: grab;
+    transition: translate 620ms cubic-bezier(0.22, 1, 0.36, 1), scale 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  /* A ring seen from above hangs low on its host (carousel-3d: 88px above the centre, 153px below), so it is lifted to sit evenly. Same timing as the cards. */
+  .switch-deck:is([data-kui~='carousel-3d'], [data-kui~='carousel-3d-high']) { translate: 0 calc(var(--card-w) * -0.32); }
+  /* A ring seen from inside is wider than the stage at any card size, so it shrinks whole and no card is sliced at the stage's edge. Its sweep sits 0.385 of a card left of centre, so it is nudged back. */
+  .switch-deck[data-kui~='carousel-3d-inside'] { --fit: 0.65; scale: var(--fit); translate: calc(var(--card-w) * 0.385 * var(--fit)) 0; }
+  @media (max-width: 1199px) { .switch-deck[data-kui~='carousel-3d-inside'] { --fit: 0.52; } }
+  @media (max-width: 999px) { .switch-deck[data-kui~='carousel-3d-inside'] { --fit: 0.7; } }
+  @media (max-width: 767px) { .switch-deck[data-kui~='carousel-3d-inside'] { --fit: 0.48; } }
+  @media (prefers-reduced-motion: reduce) { .switch-deck { transition: none; } }
+
+  /* ---------- groups and demos, as showcase.html ---------- */
+  .group-head .kicker { margin-bottom: 1rem; }
+  .group-head h2 { font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 22ch; }
+  .demo { margin-top: clamp(3.5rem, 7vw, 6rem); }
+  .demo-head h3 { font-size: clamp(1.3rem, 0.6vw + 1.1rem, 1.6rem); letter-spacing: -0.02em; line-height: 1.15; font-weight: 600; max-width: 30ch; }
+  .demo-head code { font-size: 0.92em; color: var(--fg); }
+  .stage { margin-top: 1.75rem; overflow-x: clip; }
+  .stage-foot { margin-top: 1.25rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.6rem; }
+
+  main .kui-contract {
+    display: inline-flex; flex-direction: row; align-items: center; justify-content: flex-start;
+    flex-wrap: nowrap; gap: 0.85rem;
+    max-width: 100%; margin: 1.35rem 0 0;
+    padding: 0.45rem 0.5rem 0.45rem 0.95rem;
+    border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; line-height: 1.5;
+    color: #ffffff; background: var(--accent-ink);
+  }
+  :root[data-theme='dark'] main .kui-contract { color: var(--accent-ink); background: var(--accent); }
+  main .kui-contract code {
+    min-width: 8ch; overflow-x: auto; white-space: nowrap;
+    font: inherit; color: inherit; background: none; border: none; padding: 0;
+    padding-bottom: 0.3rem;
+    scrollbar-width: thin;
+    padding-right: 1.75rem;
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
+  }
+  main .kui-contract .kui-show-code-toggle { margin: 0; opacity: 1; }
+
+  .motion-pause {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.5rem 0.95rem; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 0.8rem; font-weight: 600;
+    background: transparent; color: var(--fg); border: 1px solid var(--border);
+  }
+  .motion-pause:hover { border-color: var(--fg); }
+  .motion-pause[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .motion-pause svg { width: 12px; height: 12px; fill: currentColor; }
+
+  /* ---------- the card every deck on this page uses ---------- */
+  .card { width: var(--card-w, 160px); margin: 0; }
+  .card img, .row img, .thumb img {
+    display: block; object-fit: cover; object-position: top; user-select: none; -webkit-user-drag: none;
+  }
+  .card img { width: 100%; aspect-ratio: var(--card-ratio, 4 / 5); border-radius: 10px; }
+  [data-kui][aria-label] { cursor: grab; }
+
+  /* ---------- rings ---------- */
+  .rings-row { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 560px) { .rings-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (min-width: 900px) { .rings-row { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .ring-cell { display: grid; justify-items: center; align-content: start; gap: 1rem; padding-block: 1rem; overflow-x: clip; --card-w: clamp(72px, 7vw, 104px); }
+  .ring-cell > [data-kui] { margin-block: 3rem; }
+  @media (min-width: 900px) { .ring-cell + .ring-cell { border-left: 1px solid var(--border); } }
+  .ring-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .ring-label b { color: var(--fg); font-weight: 600; }
+
+  /* Full-bleed on purpose: the concave ring runs off both sides of the page. */
+  .ring-band { --card-w: clamp(150px, 26vw, 260px); --card-ratio: 16 / 10; margin-top: 1.75rem; overflow-x: clip; padding-block: clamp(1rem, 2.5vw, 2rem); }
+  .ring-band > [data-kui] { height: calc(var(--card-w) * 0.625 + 20px); }
+
+  .orbit-stage { display: grid; justify-items: center; padding-block: clamp(1rem, 3vw, 2rem); }
+  .orbit { width: min(100%, 760px); --card-w: clamp(64px, 11vw, 104px); --card-ratio: 1; }
+  .orbit-word { margin: 0; font-size: clamp(1.35rem, 0.4rem + 4.6vw, 4.25rem); font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: var(--fg); }
+
+  .helix { inline-size: min(100%, 560px); margin-inline: auto; --card-w: 100px; --card-ratio: 10 / 13; }
+  .drum { inline-size: min(100%, 460px); margin-inline: auto; --card-w: min(420px, 84vw); --card-ratio: 16 / 10; }
+  .drum .card img { object-fit: cover; }
+  .spheres { display: grid; gap: 2rem; }
+  @media (min-width: 900px) { .spheres { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .sphere-cell { display: grid; justify-items: center; gap: 1rem; overflow-x: clip; padding-block: 2rem; }
+  .sphere { --card-w: clamp(44px, 13vw, 56px); --card-ratio: 8 / 11; }
+
+  /* The ring is far wider than the window and sits mostly above it: only its bottom arc shows. Pinned to the window's bottom, so a shorter window keeps the arc. */
+  .backstage { position: relative; overflow: clip; block-size: clamp(320px, 40vw, 480px); }
+  .backstage-ring { position: absolute; inline-size: 2000px; max-inline-size: none; block-size: 2000px; left: 50%; bottom: -20px; translate: -50% 0; --card-w: 90px; --card-ratio: 9 / 13; }
+  /* The card turns with the ring, so a picture at the bottom of the circle would hang upside down. */
+  .backstage-ring img { rotate: 180deg; }
+  /* The twin: pinned to the window's top edge, so the visible arc is the ring's top one, curving the other way. At the top of the circle the cards are already upright. */
+  .backstage-ring.backstage-top { top: -20px; bottom: auto; }
+  .backstage-ring.backstage-top img { rotate: none; }
+
+  /* ---------- stacks ---------- */
+  .stack-stage { display: grid; justify-items: center; gap: 1.25rem; padding-block: 1rem; }
+  .plain-stack { --card-w: min(300px, 56vw); --card-ratio: 3 / 4; }
+  .piles { display: grid; gap: 2rem; }
+  @media (min-width: 800px) { .piles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .piles > .stage-foot { grid-column: 1 / -1; margin-top: 0; }
+  .pile-cell { display: grid; justify-items: center; align-content: start; gap: 2rem; overflow: clip; padding-block: 2.5rem; }
+  .pile { --card-w: min(240px, 56vw); --card-ratio: 3 / 4; }
+
+  /* ---------- rows ---------- */
+  .row { max-inline-size: 100%; min-inline-size: 0; gap: 20px; padding-block: 2.5rem; align-items: center; }
+  .row > figure { width: 180px; margin: 0; overflow: hidden; border-radius: 10px; }
+  .row > figure:nth-child(3n + 2) { width: 250px; }
+  .row > figure:nth-child(3n) { width: 210px; }
+  .row figure img { width: 100%; height: 190px; }
+  /* The plain loop holds portrait 3D renders: one even portrait card instead of the mixed widths. */
+  #loop-demo > figure, #loop-demo > figure:nth-child(n) { width: 200px; }
+  #loop-demo figure img { height: 280px; }
+  .row > img { inline-size: 200px; block-size: 190px; flex: 0 0 auto; border-radius: 10px; }
+
+  /* Catalog recipe: `--kui-offset` minus `--kui-ring-drift` is the signed number of places from the
+     live slide, and the transition is the row's own timing, so keys and release move together. */
+  .row img { --place: calc(var(--kui-offset, 0) - var(--kui-ring-drift, 0)); }
+  .row.item-offset { padding-block: 5rem; }
+  .row.item-offset > figure { overflow: visible; }
+  .row.item-offset img { transform: translateY(calc(var(--place) * 30px)) rotate(calc(var(--place) * -8deg)); opacity: clamp(.15, calc(1 - max(var(--place), -1 * var(--place)) * .3), 1); }
+  .row.parallax img { inline-size: calc(100% + 120px); max-inline-size: none; margin-inline-start: -60px; transform: translateX(clamp(-56px, calc(var(--place) * -24px), 56px)); }
+  .row.item-offset img, .row.parallax img {
+    transition-property: transform, opacity;
+    transition-duration: var(--kui-spatial-row-duration, 620ms);
+    transition-timing-function: var(--kui-spatial-row-ease, ease);
+    transition-delay: var(--kui-spatial-row-delay, 0ms);
+  }
+  .row:is([data-kui-ring-dragging='true'], [data-kui-ring-spinning='true'], [data-kui-ring-wrap='true']) img { transition: none; }
+  @media (prefers-reduced-motion: reduce) { .row.item-offset img, .row.parallax img { transform: none; transition-duration: .01ms; } }
+
+  .row.ticker-rtl > img { --along: clamp(0, calc((var(--kui-row-centre) + var(--kui-row-cycle) + var(--kui-row-x)) / var(--kui-row-width)), 1); transform: translateX(calc(var(--kui-row-x) + var(--kui-row-cycle))) scale(clamp(.55, calc(.55 + var(--along) * .35), .9)); opacity: calc(.3 + var(--along) * .7); }
+
+  /* Timer and pagination: each reads a number the deck writes on it. */
+  .timer-row { position: relative; }
+  .row-clock { position: absolute; inset-inline-start: 0; bottom: 0; inline-size: 100%; block-size: 4px; background: var(--accent); scale: var(--kui-autoplay-progress, 0) 1; transform-origin: left; }
+  .pager { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.6rem; margin-top: 0.5rem; }
+  .pager button {
+    width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--fg); font-size: 0.8rem; font-weight: 590;
+  }
+  .pager .is-scaled { scale: clamp(.55, calc(1 - abs(var(--kui-step-distance, 0)) * .3), 1); }
+  .pager button[data-kui-step-state='active'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .pager .wide { width: auto; padding-inline: 1rem; }
+  @media (max-width: 480px) { .pager { gap: 0.3rem; } .pager .wide { padding-inline: 0.6rem; } }
+  .pager .thumb { width: 64px; height: 64px; padding: 0; overflow: hidden; border-radius: 10px; }
+  .pager .thumb img { width: 100%; height: 100%; }
+  .pager .thumb[data-kui-step-state='active'] { background: none; outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- rows driven by page scroll ---------- */
+  /* The section is tall and the demo sticks, so the row stays on screen for its whole distance. */
+  .scroll-area { min-block-size: 300vh; }
+  .scroll-pin { position: sticky; top: 12vh; }
+  .ripple > img { --phase: calc((var(--kui-row-centre) + var(--kui-row-cycle) + var(--kui-row-x)) / var(--kui-row-width) * 360deg); translate: 0 calc(clamp(-24, var(--kui-motion-speed, 0) / 12, 24) * 1px * sin(var(--phase))); }
+  /* Portrait art: a taller slot and a centred crop keep the subject in frame. */
+  #ripple-demo > img, #tilt-demo > img { inline-size: 170px; block-size: 240px; object-position: center; }
+  #velocity-demo img { object-position: center; }
+  .tilted > img { transform: translateX(calc(var(--kui-row-x) + var(--kui-row-cycle))) rotate(clamp(-10deg, calc(var(--kui-motion-speed, 0) / 48 * 1deg), 10deg)); }
+
+  /* ---------- depth lines ---------- */
+  .line-clip { overflow: clip; padding-block: 3rem; }
+  .line { max-inline-size: 900px; margin-inline: auto; }
+  .line > figure { margin: 0; }
+  .line img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; object-position: top; border-radius: 8px; user-select: none; -webkit-user-drag: none; }
+  .line-show { gap: 16px; }
+  .line-show > figure { inline-size: 160px; block-size: 220px; }
+  .line-velocity { gap: 0; }
+  /* The host's height is the card plus `rise` for every card that fits across, so this one is sized to stay on one screen while it is pinned. */
+  #scroll-velocity-offset .line-clip { padding-block: 1.5rem; }
+  .line-velocity > figure { inline-size: 170px; block-size: 230px; margin-inline-end: -50px; overflow: hidden; border-radius: 8px; }
+  .line-velocity img { inline-size: calc(100% + 120px); max-inline-size: none; margin-inline-start: -60px; translate: calc(clamp(-60, var(--kui-motion-speed, 0) / 25, 60) * 1px) 0; }
+  .archive-stage { overflow: clip; block-size: min(80vh, 640px); display: grid; align-content: center; margin-top: 1.25rem; }
+  .line-archive { inline-size: 100%; gap: 16px; }
+  .line-archive > figure { inline-size: 200px; block-size: 260px; }
+
+  /* ---------- slideshows and the step deck ---------- */
+  .shows { display: grid; gap: 1.5rem; }
+  @media (min-width: 800px) { .shows { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .show-card { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; }
+  .show-card h3 { font-size: clamp(1.1rem, 0.4vw + 1rem, 1.3rem); letter-spacing: -0.02em; font-weight: 600; }
+  .show-card .kui-contract { justify-self: start; }
+  .show { margin-top: 1.25rem; border-radius: 14px; }
+  .show-list { margin: 0; padding: 0; list-style: none; border-radius: 14px; }
+  #slide-demo { max-inline-size: min(100%, 300px); margin-inline: auto; }
+  .show-list video { display: block; width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 14px; background: #000; }
+  .show-list img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 14px; }
+  .show .kui-slideshow-controls button { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .show .kui-slideshow-controls .kui-slideshow-dot { background: transparent; border-color: color-mix(in srgb, var(--fg) 35%, transparent); min-inline-size: 0.75rem; min-block-size: 0.75rem; }
+  .show .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] { background: var(--accent); border-color: var(--accent); }
+
+  /* The step deck publishes `--kui-offset` and marks; how a slide looks at each mark is the page's. */
+  .deck-shell {
+    --deck-slide: min(340px, 62vw);
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr minmax(0, calc(var(--deck-slide) * var(--kui-main, 0.85))) 1fr;
+    grid-template-areas: 'view view view' '.    ctrl .' 'dots dots dots';
+    row-gap: 1.25rem;
+  }
+  .deck-viewport { grid-area: view; overflow: hidden; }
+  .deck-prev { grid-area: ctrl; justify-self: start; }
+  .deck-next { grid-area: ctrl; justify-self: end; }
+  .deck-track { display: grid; place-items: center; min-height: calc(var(--deck-slide) * 5 / 4 + 3rem); }
+  .deck-track > * { grid-area: 1 / 1; }
+  .deck-slide {
+    width: var(--deck-slide); margin: 0;
+    scale: var(--kui-rest, 0.6);
+    visibility: hidden;
+    translate: calc(var(--kui-offset, 0) * var(--kui-peek, 56%)) 0;
+    z-index: 1;
+    transition: scale 620ms cubic-bezier(0.22, 1, 0.36, 1), translate 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .deck-slide img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: center 22%; border-radius: 12px; }
+  .deck-slide[data-kui-step-offset='0'],
+  .deck-slide[data-kui-step-offset='1'],
+  .deck-slide[data-kui-step-offset='-1'] { visibility: visible; }
+  .deck-slide:not([data-kui-step-offset]):first-child { visibility: visible; scale: var(--kui-main, 0.85); }
+  .deck-slide[data-kui-step-state='active'] { scale: var(--kui-main, 0.85); z-index: 20; }
+  .deck-arrow {
+    width: 44px; height: 44px; border-radius: 999px;
+    display: grid; place-items: center; cursor: pointer;
+    background: var(--fg); color: var(--bg); border: none;
+  }
+  .deck-arrow svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .deck-arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .deck-dots { grid-area: dots; display: flex; justify-content: center; align-items: center; gap: clamp(0.25rem, 2vw, 1rem); }
+  .deck-dot {
+    position: relative; width: 8px; height: 8px; padding: 0; border: none; border-radius: 999px; cursor: pointer;
+    background: color-mix(in srgb, var(--fg) 22%, transparent);
+  }
+  .deck-dot::before { content: ''; position: absolute; inset: -18px -8px; }
+  .deck-dot[data-kui-step-state='active'] { width: 26px; background: var(--accent); }
+  .deck-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  /* ---------- vertical decks ----------
+     The same deck turned on its side: `translate: 0 calc(...)` where the horizontal deck has x.
+     `--kui-peek` resolves against the slide's own height here, as translate percentages do. */
+  .vdecks { display: grid; gap: 1.5rem; }
+  @media (min-width: 960px) { .vdecks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* One `minmax(0, 1fr)` column: an implicit grid column is `auto`, which sizes to the nowrap
+     contract line and pushed the right-hand card past the page. */
+  .vdeck-card {
+    display: grid; grid-template-columns: minmax(0, 1fr); align-content: start;
+    border: 1px solid var(--border); border-radius: 16px; background: var(--surface);
+    padding: clamp(1.25rem, 3vw, 2.5rem);
+  }
+  .vdeck-card h4 { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+  .vdeck-card > p { margin-top: 0.35rem; color: var(--muted); font-size: 0.92rem; line-height: 1.55; }
+  .vdeck-card .kui-contract { justify-self: start; }
+  .vdeck-swipe { margin-top: 1.25rem; }
+  .vdeck {
+    --vdeck-slide: min(240px, 56vw);
+    margin-top: 1.25rem;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1rem; align-items: center;
+  }
+  .vdeck-swipe > .vdeck { margin-top: 0; }
+  .vdeck-viewport { overflow: hidden; height: calc(var(--vdeck-slide) * 2); }
+  .vdeck-track { display: grid; place-items: center; height: 100%; }
+  .vdeck-track > * { grid-area: 1 / 1; }
+  .vdeck-slide {
+    width: var(--vdeck-slide); margin: 0;
+    scale: var(--kui-rest, 0.6);
+    visibility: hidden;
+    translate: 0 calc(var(--kui-offset, 0) * var(--kui-peek, 56%));
+    z-index: 1;
+    transition: scale 620ms cubic-bezier(0.22, 1, 0.36, 1), translate 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .vdeck-slide img {
+    display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: center 30%;
+    border-radius: 12px; border: 1px solid var(--border); user-select: none; -webkit-user-drag: none;
+  }
+  .vdeck-slide[data-kui-step-offset='0'],
+  .vdeck-slide[data-kui-step-offset='1'],
+  .vdeck-slide[data-kui-step-offset='-1'] { visibility: visible; }
+  .vdeck-slide:not([data-kui-step-offset]):first-child { visibility: visible; scale: var(--kui-main, 0.85); }
+  .vdeck-slide[data-kui-step-state='active'] { scale: var(--kui-main, 0.85); z-index: 20; }
+  .vdeck-up, .vdeck-down { flex: none; }
+  .vdeck-ctrl { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+  .vdeck-dots { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+  .vdeck-dots .deck-dot::before { inset: -8px -18px; }
+  .vdeck-dots .deck-dot[data-kui-step-state='before'] { width: 8px; height: 8px; }
+  .vdeck-dots .deck-dot[data-kui-step-state='active'] { width: 8px; height: 26px; }
+
+  /* ---------- marquees ---------- */
+  /* `overflow-x` only: `scroll()` must still reach the page, and `clip` is not a scroll container. */
+  .marquee-view { overflow-x: clip; margin-top: 1.75rem; }
+  .marquee-set { display: flex; gap: 16px; padding-inline-end: 16px; flex: none; }
+  #marquee-scroll-demo .marquee-set img { object-position: center 70%; }
+  .marquee-set img { display: block; width: clamp(150px, 20vw, 260px); aspect-ratio: 3 / 4; object-fit: cover; object-position: center 25%; border-radius: 10px; }
+</style>
+</head>
+<body>
+
+  <header class="site-header" data-od-id="header" data-kui="header-hide-on-scroll" data-nav-root>
+    <div class="kui-nav-backdrop" data-nav-backdrop hidden></div>
+    <a href="./index.html" class="logo" aria-label="kUInetic home">
+      <span class="logo-mark" aria-hidden="true"><span class="logo-dot" data-kui="orbit 3.5s"></span></span>
+      <strong class="wordmark">k<b>UI</b>netic</strong>
+    </a>
+    <nav class="nav-links" data-nav-panel aria-label="Primary" hidden></nav>
+    <a href="./index.html#install" class="btn btn-ghost nav-cta" style="padding:0.55rem 1.1rem; font-size:0.85rem;">Get started</a>
+    <span data-theme-toggle-mount></span>
+    <button
+      type="button"
+      class="kui-nav-toggle"
+      data-kui="hamburger-to-x"
+      aria-haspopup="true"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-nav-hamburger
+    >
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+      <span class="kui-bar"></span>
+    </button>
+  </header>
+
+  <main id="top">
+    <div class="wrap">
+
+      <!-- ===================================================== THE SWITCHER -->
+      <section class="demo-hero" id="switcher" data-od-id="switcher">
+        <div class="hero-copy">
+          <p class="kicker">Advanced · Carousels</p>
+          <h1 data-kui="fade-up 800ms on:load">One set of pictures. Every arrangement.</h1>
+          <div class="pill-row" role="group" aria-label="Choose an arrangement, or pause">
+            <button type="button" class="is-active" data-switch="carousel-3d target:.card spin:40s hover:none pause:.switch-pause lightbox:true">carousel-3d</button>
+            <button type="button" data-switch="carousel-3d-high target:.card spin:40s hover:none pause:.switch-pause lightbox:true">carousel-3d-high</button>
+            <button type="button" data-switch="carousel-orbit target:.card radius:180px spin:40s hover:none pause:.switch-pause lightbox:true">carousel-orbit</button>
+            <button type="button" data-switch="carousel-stack target:.card autoplay:3s hover:none pause:.switch-pause lightbox:true">carousel-stack</button>
+            <button type="button" data-switch="carousel-3d-inside target:.card spin:40s hover:none pause:.switch-pause lightbox:true">carousel-3d-inside</button>
+            <button type="button" data-switch="carousel-loop target:.card spin:40s hover:none pause:.switch-pause lightbox:true">carousel-loop</button>
+            <button type="button" class="motion-pause switch-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+          </div>
+          <p class="kui-contract"><code id="switcher-attr">data-kui="carousel-3d target:.card spin:40s hover:none pause:.switch-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="switcher-deck">Show code</button></p>
+          <nav class="hero-index" aria-label="On this page">
+            <a href="#rings">Rings</a>
+            <a href="#stacks">Stacks</a>
+            <a href="#rows">Rows</a>
+            <a href="#scroll-rows">Scroll rows</a>
+            <a href="#lines">Depth lines</a>
+            <a href="#slides">Slideshows</a>
+            <a href="#marquees">Marquees</a>
+          </nav>
+        </div>
+        <div class="switch-stage">
+          <div class="switch-deck" id="switcher-deck" aria-label="Eight pastel dreamscapes, in one arrangement at a time" data-kui="carousel-3d target:.card spin:40s hover:none pause:.switch-pause lightbox:true">
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-02.jpg" alt="A pink-haired woman sitting in a striped pink tunnel on a checkered floor" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-03.jpg" alt="A woman resting on a peach cloud beside pink stairs and an arch" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-05.jpg" alt="A pastel room with a sofa, a round window onto the moon, and a checkered floor" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-07.jpg" alt="A floating island of grass above the clouds, a red chair and a swing" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-70.jpg" alt="A tunnel of pastel cotton-candy clouds leading to a small arch" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-13.jpg" alt="A peach arch and pink stairs under a pale sphere" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-14.jpg" alt="A woman in a pink ruffled gown among pink towers and flowers" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-15.jpg" alt="A woman in pink on a mint bench under a rainbow arch" draggable="false" /></figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================================================== RINGS -->
+      <section id="rings" data-od-id="rings">
+        <div class="group-head">
+          <p class="kicker">Rings</p>
+          <h2 data-kui="fade-up on:enter">Pictures on a circle, in 3D or flat.</h2>
+        </div>
+
+        <article class="demo" id="carousel-3d">
+          <div class="demo-head">
+            <h3>The same ring from four sides.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-3d tilt:12deg target:.card spin:32s hover:none pause:.rings-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="rings-demo">Show code</button></p>
+          </div>
+          <div class="stage">
+            <div class="rings-row" id="rings-demo">
+              <div class="ring-cell">
+                <div aria-label="Chrome figures, raised camera" data-kui="carousel-3d-high tilt:30deg perspective:1200px target:.card spin:44s hover:none pause:.rings-pause lightbox:true">
+                  <figure class="card"><img src="./assets/chrome/chrome_07.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_08.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_09.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_10.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_11.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_12.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                </div>
+                <p class="ring-label"><b>top</b> · carousel-3d-high</p>
+              </div>
+              <div class="ring-cell">
+                <div aria-label="Chrome figures, eye level" data-kui="carousel-3d tilt:12deg target:.card spin:32s hover:none pause:.rings-pause lightbox:true">
+                  <figure class="card"><img src="./assets/chrome/chrome_01.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_02.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_03.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_04.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_05.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_06.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                </div>
+                <p class="ring-label"><b>front</b> · carousel-3d</p>
+              </div>
+              <div class="ring-cell">
+                <div aria-label="Space-age portraits, each square to the viewer" data-kui="carousel-3d tilt:26deg facing:camera target:.card spin:38s hover:none pause:.rings-pause lightbox:true">
+                  <figure class="card"><img src="./assets/retro-future/retro-19.jpg" alt="A woman in a pale pink space helmet with a curved visor" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/retro-future/retro-21.jpg" alt="A woman in a white helmet with an orange visor" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/retro-future/retro-27.jpg" alt="A woman in a mint helmet and round goggles, a yellow top" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/retro-future/retro-33.jpg" alt="A woman in a mint helmet with two round eyes, a soap bubble beside her" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/retro-future/retro-43.jpg" alt="A woman in a clear lilac helmet and a translucent suit" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/retro-future/retro-50.jpg" alt="A woman in a yellow dome helmet and a yellow polo-neck" loading="lazy" draggable="false" /></figure>
+                </div>
+                <p class="ring-label"><b>facing</b> · facing:camera</p>
+              </div>
+              <div class="ring-cell">
+                <div aria-label="Chrome figures and towers, low camera" data-kui="carousel-3d-low tilt:-18deg perspective:1800px target:.card spin:-56s hover:none pause:.rings-pause lightbox:true">
+                  <figure class="card"><img src="./assets/chrome/chrome_13.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_14.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_15.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/chrome/chrome_16.jpg" alt="Chrome figure study" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/concept-art/skyway-tower-clouds.jpg" alt="Glass tower above clouds, a figure on a walkway" loading="lazy" draggable="false" /></figure>
+                  <figure class="card"><img src="./assets/concept-art/cloudpath-hand-sky.jpg" alt="A lit path climbing through clouds towards a giant hand" loading="lazy" draggable="false" /></figure>
+                </div>
+                <p class="ring-label"><b>bottom</b> · carousel-3d-low</p>
+              </div>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause rings-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the rings</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="gallery-backstage-top">
+          <div class="demo-head">
+            <h3>The same flat ring, from the other edge.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-3d plane:screen radius:900px spin:40s hover:none target:.card pause:.backstage-top-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="backstage-top-demo">Show code</button></p>
+          </div>
+          <div class="stage backstage" id="backstage-top-demo">
+            <div class="backstage-ring backstage-top" aria-label="Forty-two watercolor storybook scenes on a large clipped ring" data-kui="carousel-3d plane:screen radius:900px spin:40s hover:none target:.card pause:.backstage-top-pause lightbox:true">
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-01.jpg" alt="An animal in a straw hat and blue coat fishing from stepping stones" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-02.jpg" alt="A tree-stump house with a lit window and ivy on the stairs" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-03.jpg" alt="A girl in a red dress with a black cat in a forest" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-04.jpg" alt="A hooded figure in a pale cloak holding a lantern" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-05.jpg" alt="A small elf in a blue hat among tall grass" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-06.jpg" alt="An old man and a boy at a cafe table with a cat" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-07.jpg" alt="A girl holding a yellow chick in front of white houses" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-08.jpg" alt="Two cliff-top cottages with a washing line over the sea" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-09.jpg" alt="Two children and a white dog on an autumn hill path" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-12.jpg" alt="A lit cottage in a misty forest, a figure with a red umbrella" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-13.jpg" alt="A girl in a pink dress wading in a pond with ducklings" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-14.jpg" alt="A street lantern above a small blue village" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-15.jpg" alt="A boy in a paper crown sitting in a cardboard box with a toy sword" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-16.jpg" alt="An open storybook with a path leading to a castle" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-17.jpg" alt="Two mice sharing a meal on a tree-stump table" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-19.jpg" alt="A girl in a yellow raincoat beside a giant snail" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-20.jpg" alt="A dark bird above a fox in a green forest" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-21.jpg" alt="A fox in a red scarf reading under a willow by a stream" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-22.jpg" alt="A small figure on an autumn path toward a hilltop castle" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-23.jpg" alt="A boy in a scarf beside a lamppost on a Paris street" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-24.jpg" alt="A small house built on a giant hat resting on a sea creature" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-01.jpg" alt="An animal in a straw hat and blue coat fishing from stepping stones" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-02.jpg" alt="A tree-stump house with a lit window and ivy on the stairs" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-03.jpg" alt="A girl in a red dress with a black cat in a forest" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-04.jpg" alt="A hooded figure in a pale cloak holding a lantern" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-05.jpg" alt="A small elf in a blue hat among tall grass" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-06.jpg" alt="An old man and a boy at a cafe table with a cat" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-07.jpg" alt="A girl holding a yellow chick in front of white houses" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-08.jpg" alt="Two cliff-top cottages with a washing line over the sea" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-09.jpg" alt="Two children and a white dog on an autumn hill path" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-12.jpg" alt="A lit cottage in a misty forest, a figure with a red umbrella" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-13.jpg" alt="A girl in a pink dress wading in a pond with ducklings" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-14.jpg" alt="A street lantern above a small blue village" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-15.jpg" alt="A boy in a paper crown sitting in a cardboard box with a toy sword" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-16.jpg" alt="An open storybook with a path leading to a castle" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-17.jpg" alt="Two mice sharing a meal on a tree-stump table" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-19.jpg" alt="A girl in a yellow raincoat beside a giant snail" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-20.jpg" alt="A dark bird above a fox in a green forest" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-21.jpg" alt="A fox in a red scarf reading under a willow by a stream" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-22.jpg" alt="A small figure on an autumn path toward a hilltop castle" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-23.jpg" alt="A boy in a scarf beside a lamppost on a Paris street" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-watercolor/watercolor-24.jpg" alt="A small house built on a giant hat resting on a sea creature" loading="lazy" draggable="false" /></figure>
+            </div>
+          </div>
+          <div class="stage-foot">
+            <button type="button" class="motion-pause backstage-top-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the ring</button>
+          </div>
+        </article>
+
+        <article class="demo" id="carousel-3d-inside">
+          <div class="demo-head">
+            <h3>Inside the ring, looking out.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-3d-inside target:.card arc:180deg facing:radial perspective:900px gap:24px spin:60s hover:none pause:.band-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="band-demo">Show code</button></p>
+          </div>
+        </article>
+      </section>
+    </div>
+
+    <div class="ring-band" id="band-demo">
+      <div aria-label="Low-poly 3D landscapes, on a concave band" data-kui="carousel-3d-inside target:.card arc:180deg facing:radial perspective:900px gap:24px spin:60s hover:none pause:.band-pause lightbox:true">
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-01.jpg" style="object-position: center 60%" alt="A low-poly desert with red rocks and a lookout tower" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-02.jpg" style="object-position: center 55%" alt="A low-poly forest camp with a tent and fire on a floating island" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-03.jpg" style="object-position: center 55%" alt="A low-poly waterfall cliff above a blue pond at sunset" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-04.jpg" style="object-position: center 45%" alt="A low-poly camp beside a river on a grey tile" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-05.jpg" style="object-position: center 60%" alt="A low-poly red-and-white lighthouse on a green island" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-06.jpg" style="object-position: center 65%" alt="A low-poly palm island with pale ice floes in a blue sea" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-07.jpg" alt="A low-poly village on a green hill by the sea" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-08.jpg" style="object-position: center 40%" alt="A low-poly red mountain reflected in a still river at dusk" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-09.jpg" style="object-position: center 45%" alt="A low-poly village of red and blue roofs below peaks" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-10.jpg" style="object-position: center 40%" alt="Low-poly pink mountains reflected in calm water" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-11.jpg" style="object-position: center 60%" alt="A low-poly log cabin on a floating island" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-12.jpg" alt="A low-poly autumn birch forest in gold light" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-13.jpg" style="object-position: center 60%" alt="A low-poly pine forest with a path" loading="lazy" draggable="false" /></figure>
+        <figure class="card"><img src="./assets/anim-lowpoly/lowpoly-14.jpg" style="object-position: center 65%" alt="A low-poly purple range under a coral sun" loading="lazy" draggable="false" /></figure>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div class="stage-foot">
+        <button type="button" class="motion-pause band-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the band</button>
+      </div>
+
+      <article class="demo" id="gallery-backstage">
+        <div class="demo-head">
+          <h3>A huge flat ring, seen through a window.</h3>
+          <p class="kui-contract"><code>data-kui="carousel-3d plane:screen radius:900px spin:40s hover:none target:.card pause:.backstage-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="backstage-demo">Show code</button></p>
+        </div>
+        <div class="stage backstage" id="backstage-demo">
+          <div class="backstage-ring" aria-label="Forty-eight pastel dreamscapes on a large clipped ring" data-kui="carousel-3d plane:screen radius:900px spin:40s hover:none target:.card pause:.backstage-pause lightbox:true">
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-16.jpg" alt="A pink room with a window onto clouds, cushions on the sill" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-17.jpg" alt="A pale sphere on a blue striped block, a lone figure on the white dune" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-18.jpg" alt="A red-pink desert with a giant pearl sphere" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-19.jpg" alt="Pastel arches and floating spheres" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-20.jpg" alt="A figure with a screen for a head on a white staircase, pink doors around" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-21.jpg" alt="A square pool of sky set into pink clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-22.jpg" alt="A woman in a pink coat among pink flora, a red bird on her shoulder" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-23.jpg" alt="Pink flower hills with a small camper van" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-24.jpg" alt="A glass arch standing in a lavender field" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-25.jpg" alt="Pale blue and white architecture with a sphere above still water" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-26.jpg" alt="Pink stairs between pink walls, a chrome ball at the foot" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-27.jpg" alt="A doorframe standing in the sea at dusk, spheres floating nearby" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-28.jpg" alt="A glass cube holding a peach cloud in a sunset desert" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-29.jpg" alt="A blue house with a glowing doorway at twilight" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-30.jpg" alt="Pastel clouds and pink spheres above still water" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-31.jpg" alt="A giant pink sphere over clouds, a tiny figure below" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-32.jpg" alt="White arches with a single blue chair" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-33.jpg" alt="Pastel sculpted rocks with pink blossoms" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-34.jpg" alt="A glowing door standing in lavender water" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-36.jpg" alt="Pink balloons on a pale plain" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-37.jpg" alt="A small boat on pink water between pale walls" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-38.jpg" alt="A yellow sphere and lavender plants on a blue plinth" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-40.jpg" alt="A swing hanging in pink clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-41.jpg" alt="A pink sofa floating on calm water" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-42.jpg" alt="Pink arches and a round window above a flower garden" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-43.jpg" alt="Chrome spheres resting in clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-44.jpg" alt="A pink room with a sofa and a wall open to blue sky" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-45.jpg" alt="Pale stairs reflected in water among clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-46.jpg" alt="Pink crystal towers reflected in still water" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-47.jpg" alt="A figure on a ladder pruning a tree shaped like a cloud" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-48.jpg" alt="A swing over lavender clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-50.jpg" alt="A table with a single rose above the clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-52.jpg" alt="An arched niche holding one small cloud" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-53.jpg" alt="A pink train riding through clouds under a balloon" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-54.jpg" alt="Two chairs and a bouquet in the clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-55.jpg" alt="Green hills with pink clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-57.jpg" alt="A mirror disc standing in a pink desert" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-59.jpg" alt="Pastel spheres and balloons floating in the air" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-60.jpg" alt="A pink arched house with stairs and a tree" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-61.jpg" alt="A tennis court among clouds, pink steps at its end" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-62.jpg" alt="An arch with a yellow sphere over blue water" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-63.jpg" alt="A white arch in a field of wheat" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-64.jpg" alt="A mossy doorframe opening onto a pink cloud" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-65.jpg" alt="Stairs leading up to a glass sphere in the desert" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-66.jpg" alt="Lavender spheres and stairs" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-67.jpg" alt="A planet hanging over a pink desert" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-68.jpg" alt="A mirror ring among violet mountains" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/pastel-surreal/pastel-69.jpg" alt="A red arch, a green wall and a lone cloud" loading="lazy" draggable="false" /></figure>
+          </div>
+        </div>
+        <div class="stage-foot">
+          <button type="button" class="motion-pause backstage-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the ring</button>
+        </div>
+      </article>
+
+      <article class="demo" id="carousel-orbit">
+        <div class="demo-head">
+          <h3>A ring laid flat, around whatever sits in the middle.</h3>
+          <p class="kui-contract"><code>data-kui="carousel-orbit spin:60s hover:none target:.card radius:300px pause:.orbit-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="orbit-demo">Show code</button></p>
+        </div>
+        <div class="stage orbit-stage">
+          <div class="orbit" id="orbit-demo" aria-label="Material spheres, in orbit" data-kui="carousel-orbit spin:60s hover:none target:.card radius:300px pause:.orbit-pause lightbox:true">
+            <p class="orbit-word">ORBIT</p>
+            <figure class="card"><img src="./assets/showcase-new/orbit/chrome.webp" alt="A sphere of liquid chrome" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/dunes.webp" alt="A sphere of rippled sand dunes" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/glass.webp" alt="A frosted glass sphere with a warm glow inside" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/ice.webp" alt="A sphere of cracked blue ice" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/jade.webp" alt="A polished green jade sphere" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/lava.webp" alt="A black sphere split by glowing lava" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/marble.webp" alt="A white marble sphere veined with gold" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/moss.webp" alt="A dark sphere covered in moss" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/opal.webp" alt="An opal sphere flashing red and green" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/showcase-new/orbit/porcelain.webp" alt="A blue and white porcelain sphere painted with mountains" loading="lazy" draggable="false" /></figure>
+          </div>
+          <div class="stage-foot">
+            <button type="button" class="motion-pause orbit-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the orbit</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="demo" id="gallery-helix">
+        <div class="demo-head">
+          <h3>A helix: a ring that climbs.</h3>
+          <p class="kui-contract"><code>data-kui="carousel-3d shape:helix rise:32px arc:540deg radius:240px spin:30s hover:none target:.card pause:.helix-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="helix-demo">Show code</button></p>
+        </div>
+        <div class="stage">
+          <div class="helix" id="helix-demo" aria-label="Pop-art comic halftone portraits, on a helix" data-kui="carousel-3d shape:helix rise:32px arc:540deg radius:240px spin:30s hover:none target:.card pause:.helix-pause lightbox:true">
+            <figure class="card"><img src="./assets/anim-comic/comic-01.jpg" alt="Pop-art faces cut into four colour strips, halftone dots over each" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-02.jpg" alt="A man looking up against a yellow starburst on hot pink" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-03.jpg" alt="A blue-toned pop-art face in profile with wide eyes" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-04.jpg" alt="A square-jawed man in a blue shirt on a yellow and red ground" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-05.jpg" alt="A wide-eyed woman with a brown bouffant, mouth open in surprise" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-06.jpg" alt="A blonde woman with a hand to her cheek and a WOW! burst" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-07.jpg" alt="A close-up red halftone face with one wide eye, shouting" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-08.jpg" alt="A dark-haired woman with red lips among blank speech bubbles" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-09.jpg" alt="A pink-haired woman flashing a peace sign under a BOOM! burst" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-10.jpg" alt="A woman's face split pink and cyan, lips open in shock" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-11.jpg" alt="A black-and-yellow screaming face on a yellow poster" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/anim-comic/comic-12.jpg" alt="A halftone close-up of a car wheel in red and blue" loading="lazy" draggable="false" /></figure>
+          </div>
+          <div class="stage-foot">
+            <button type="button" class="motion-pause helix-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the helix</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="demo" id="gallery-drum">
+        <div class="demo-head">
+          <h3>A drum: a ring that rolls down.</h3>
+          <p class="kui-contract"><code>data-kui="carousel-3d axis:x tilt:0deg spin:30s hover:none pause:.drum-pause target:.card lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="drum-demo">Show code</button></p>
+        </div>
+        <div class="stage">
+          <div class="drum" id="drum-demo" aria-label="Candy-coloured buildings, on a drum" data-kui="carousel-3d axis:x tilt:0deg spin:30s hover:none pause:.drum-pause target:.card lightbox:true">
+            <figure class="card"><img src="./assets/candy-architecture/candy-16.jpg" style="object-position: center 90%" alt="A pink terrace with an orange door, a potted tree and wide steps under cumulus" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-17.jpg" style="object-position: center 85%" alt="Pale pink and lilac walls framing a bright sky of clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-18.jpg" style="object-position: center 59%" alt="A mint and powder-blue building with a curved canopy and a yellow bench" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-19.jpg" alt="White sculpted forms curving down to a beach, two people walking" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-20.jpg" style="object-position: center 70%" alt="A pink shopfront with a red awning on an empty street" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-22.jpg" style="object-position: center 40%" alt="A pink cloud shaped like a skyscraper" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-24.jpg" style="object-position: center 76%" alt="A pastel street of candy-coloured houses under billowing clouds" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-26.jpg" alt="A pale yellow balcony corridor, a black dog and small pastel houses" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-27.jpg" style="object-position: center 67%" alt="An ice-cream-cone building with a cat curled on its scoop" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-29.jpg" style="object-position: center 59%" alt="A white and pink staircase beside an arched teal door" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-33.jpg" alt="A pink concrete terrace opening onto a turquoise sea" loading="lazy" draggable="false" /></figure>
+            <figure class="card"><img src="./assets/candy-architecture/candy-41.jpg" style="object-position: center 67%" alt="A pink arched house with a teal door, white chairs and a cactus" loading="lazy" draggable="false" /></figure>
+          </div>
+          <div class="stage-foot">
+            <button type="button" class="motion-pause drum-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the drum</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="demo" id="gallery-sphere">
+        <div class="demo-head">
+          <h3>A sphere, on one axis or two.</h3>
+          <p class="kui-contract"><code>data-kui="carousel-3d shape:sphere gap:48px spin:30s hover:none target:.card pause:.sphere-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="sphere-demo">Show code</button></p>
+        </div>
+        <div class="stage spheres" id="sphere-demo">
+          <div class="sphere-cell">
+            <div class="sphere" aria-label="Portraits, on a spinning sphere" data-kui="carousel-3d shape:sphere gap:48px spin:30s hover:none target:.card pause:.sphere-pause lightbox:true">
+              <figure class="card"><img src="./assets/modeling/modeling_01.jpg" alt="Silver-haired woman, eyes covered by a red satin blindfold" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_03.jpg" alt="Gold-lit portrait with round sunglasses" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_04.jpg" alt="Red fabric swept across the face, red lips" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_06.jpg" alt="Black-and-white beauty close-up" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_08.jpg" alt="Orange-tinted glasses and a glossy orange jacket" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_10.jpg" alt="Portrait dripping in glossy pink paint" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_11.jpg" alt="Blue uniform, a giant butterfly over the eyes" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_13.jpg" alt="Black and yellow check polo-neck on a yellow ground" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_15.jpg" alt="Red paint mask and black gloves" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/modeling/modeling_17.jpg" alt="Black wind-swept fabric over the eyes" loading="lazy" draggable="false" /></figure>
+            </div>
+            <p class="ring-label"><b>shape:sphere</b> · one axis</p>
+          </div>
+          <div class="sphere-cell">
+            <div class="sphere" aria-label="Animated characters, on a sphere you can tumble" data-kui="carousel-3d shape:sphere gap:48px drag-axis:both spin:30s hover:none pause:.sphere-pause target:.card lightbox:true">
+              <figure class="card"><img src="./assets/anim-pixar/pixar-01.jpg" alt="A girl with brown curls in a cream sweater, on gold" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-pixar/pixar-03.jpg" alt="A boy winking in a navy hoodie, on orange" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-pixar/pixar-05.jpg" alt="A blue-haired boy in stripes with a raccoon on his shoulder" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-pixar/pixar-07.jpg" alt="A boy with a scooter, on teal" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-pixar/pixar-08.jpg" alt="A girl with braids and teal trousers, on black" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-pixar/pixar-09.jpg" alt="A golden puppy sitting on blue" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-pixar/pixar-10.jpg" alt="A young man with blond-tipped curls, on blue" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-pixar/pixar-11.jpg" alt="A boy in a lilac cardigan leaning on a purple wall" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-pixar/pixar-12.jpg" alt="A girl with long braids standing beside a capybara" loading="lazy" draggable="false" /></figure>
+            </div>
+            <p class="ring-label"><b>drag-axis:both</b> · two axes</p>
+          </div>
+        </div>
+        <div class="stage-foot">
+          <button type="button" class="motion-pause sphere-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the sphere</button>
+        </div>
+      </article>
+
+      <!-- ===================================================== STACKS -->
+      <section id="stacks" data-od-id="stacks">
+        <div class="group-head">
+          <p class="kicker">Stacks</p>
+          <h2 data-kui="fade-up on:enter">A pile of cards, front to back.</h2>
+        </div>
+
+        <article class="demo" id="carousel-stack">
+          <div class="demo-head">
+            <h3>Receding into depth.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-stack target:.card autoplay:3s hover:none pause:.stack-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="stack-demo">Show code</button></p>
+          </div>
+          <div class="stage stack-stage">
+            <div class="plain-stack" id="stack-demo" aria-label="Painted landscapes, stacked" data-kui="carousel-stack target:.card autoplay:3s hover:none pause:.stack-pause lightbox:true">
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-01.jpg" alt="A lone tree on a green hilltop under a blue sky" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-02.jpg" alt="A black cat on a stone bridge over a turquoise stream" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-03.jpg" alt="A black cat on a wall above a harbour town and a floating castle" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-04.jpg" alt="A pink blossom tree reflected in a mountain lake" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-05.jpg" alt="A cherry tree shedding petals by a turquoise lake" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-06.jpg" alt="A boy lying on a grassy hill under a big oak tree" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-07.jpg" alt="Mossy stone steps climbing through a sunlit forest" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-08.jpg" alt="A quiet street between power lines, with a snowy mountain ahead" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-09.jpg" alt="A sunset over a green field and a small wooden hut" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-10.jpg" alt="A cottage and a swing tree beneath a huge peach-coloured cloud" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-11.jpg" alt="A bicycle by a fence on a wet road under green trees" loading="lazy" draggable="false" /></figure>
+              <figure class="card"><img src="./assets/anim-ghibli/ghibli-12.jpg" alt="A mossy torii gate above stone steps in rays of light" loading="lazy" draggable="false" /></figure>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause stack-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="card-stack">
+          <div class="demo-head">
+            <h3>Swiped off the pile.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-stack leave:swipe leave-x:260px leave-rotate:18deg rest-rotate:5deg shift:0px rise:0px shrink:0 blur:0px fade:0 travel:260 autoplay:3s hover:none pause:.piles-pause target:.card lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="piles-demo">Show code</button></p>
+          </div>
+          <div class="stage piles" id="piles-demo">
+            <div class="pile-cell">
+              <div class="pile" aria-label="Fashion portraits, in a loose pile" data-kui="carousel-stack leave:swipe leave-x:260px leave-rotate:18deg rest-rotate:5deg shift:0px rise:0px shrink:0 blur:0px fade:0 travel:260 autoplay:3s hover:none pause:.piles-pause target:.card lightbox:true">
+                <figure class="card"><img src="./assets/yellow_mc.jpg" alt="Monochrome mustard-gold coat" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/pink-mc.jpg" alt="Monochrome pink, blowing a bubble" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/chap.jpg" alt="Man in a tan blazer and cream knit, sunglasses tucked in the collar" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/orange_visor.jpg" alt="Mirrored visor in orange and blue" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/autumn_model_finished.jpg" alt="Yellow portrait with autumn leaves" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/vase-dress.jpg" alt="Dress shaped like a vase" loading="lazy" draggable="false" /></figure>
+              </div>
+              <p class="ring-label"><b>card-stack</b></p>
+            </div>
+            <div class="pile-cell">
+              <div class="pile" aria-label="Clay characters, in a fading stack" data-kui="carousel-stack leave:swipe leave-x:240px leave-rotate:10deg shift:0px rise:6px shrink:0 blur:0px fade:0 travel:240 autoplay:3.5s hover:none pause:.piles-pause target:.card lightbox:true">
+                <figure class="card"><img src="./assets/anim-clay/clay-02.jpg" alt="A boy blowing a pink bubble, on red" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/anim-clay/clay-12.jpg" alt="A boy in an orange tee, on orange" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/anim-clay/clay-10.jpg" alt="A bearded man in round glasses, on green" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/anim-clay/clay-09.jpg" alt="A crowned king in a fur collar, playing cards on blue" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/anim-clay/clay-18.jpg" alt="A woman with blue curls, on pink" loading="lazy" draggable="false" /></figure>
+                <figure class="card"><img src="./assets/anim-clay/clay-17.jpg" alt="A man with an orange beard and pink glasses, on black" loading="lazy" draggable="false" /></figure>
+              </div>
+              <p class="ring-label"><b>gallery-stack</b></p>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause piles-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the piles</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- ===================================================== ROWS -->
+      <section id="rows" data-od-id="rows">
+        <div class="group-head">
+          <p class="kicker">Rows</p>
+          <h2 data-kui="fade-up on:enter">A row that never runs out.</h2>
+        </div>
+
+        <article class="demo" id="carousel-loop">
+          <div class="demo-head">
+            <h3>The plain loop.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop target:figure spin:30s hover:none pause:.plain-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="loop-demo">Show code</button></p>
+          </div>
+          <div class="stage">
+            <div class="row" id="loop-demo" aria-label="Iridescent 3D renders, in a looping row" data-kui="carousel-loop target:figure spin:30s hover:none pause:.plain-pause lightbox:true">
+              <figure><img src="./assets/anim-octane/octane-01.jpg" alt="A girl with lilac hair in a mint hood, on mint" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-03.jpg" alt="Two iridescent figures sharing a glowing sphere on a pink cloud" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-06.jpg" alt="A fuzzy pink house floating above pink clouds" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-07.jpg" alt="Pale arches with floating clouds and chrome spheres" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-08.jpg" alt="A ringed planet over a mirror-still lake" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-09.jpg" alt="A glowing arch holding a cloud, in calm water" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-10.jpg" alt="A figure in a lilac iridescent robe, a bubble in one hand" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-11.jpg" alt="A glossy iridescent face in profile" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-12.jpg" alt="A girl in a pink sweater, silver dripping from one hand" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-13.jpg" alt="Rainbow-topped pillars rising from clouds" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-14.jpg" alt="A girl in round glasses beside a glass flower" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-15.jpg" alt="Coral clouds drifting in a blue sky" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-16.jpg" alt="Pale hills and soft spheres beside a lake" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-17.jpg" alt="A pink sculpted face, melting" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-18.jpg" alt="A liquid chrome sphere in rainbow light" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-19.jpg" alt="A blue crystal chunk on lavender" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-20.jpg" alt="An iridescent tower beside a white curving road" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-octane/octane-22.jpg" alt="A glass sphere in a dark frame, pink blossoms around it" loading="lazy" draggable="false" /></figure>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause plain-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="item-offset">
+          <div class="demo-head">
+            <h3>Each card knows how far it is from the middle.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop target:figure spin:30s hover:none pause:.offset-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="offset-demo">Show code</button></p>
+          </div>
+          <div class="stage">
+            <div class="row item-offset" id="offset-demo" aria-label="Cartoon characters, offset by distance" data-kui="carousel-loop target:figure spin:30s hover:none pause:.offset-pause lightbox:true">
+              <figure><img src="./assets/cartoon/cartoon-01.jpg" alt="A cartoon book carrying a stack of books" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/cartoon/cartoon-02.jpg" alt="A black and white cartoon television on legs" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/cartoon/cartoon-03.jpg" alt="A cartoon coffee cup with a black lid, one finger raised" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/cartoon/cartoon-05.jpg" alt="A blue cartoon bomb in sunglasses and sneakers" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/cartoon/cartoon-07.jpg" alt="A cartoon frog on bright green, mid-stride" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/cartoon/cartoon-08.jpg" alt="A cartoon lemon on a tan ground" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/cartoon/cartoon-09.jpg" alt="A snarling black and white cartoon wolf" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/cartoon/cartoon-13.jpg" alt="A cartoon boy with coral curls in a blue puffer jacket, on orange" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/cartoon/cartoon-15.jpg" alt="A bearded man in a pink cap and blue jacket, on yellow" loading="lazy" draggable="false" /></figure>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause offset-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="parallax">
+          <div class="demo-head">
+            <h3>Parallax inside the frame.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop target:figure spin:30s hover:none pause:.parallax-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="parallax-demo">Show code</button></p>
+          </div>
+          <div class="stage">
+            <div class="row parallax" id="parallax-demo" aria-label="Neon painted busts and portraits with a parallax inside each frame" data-kui="carousel-loop target:figure spin:30s hover:none pause:.parallax-pause lightbox:true">
+              <figure><img src="./assets/anim-painterly/painterly-01.jpg" style="object-position: center 15%" alt="A neon orange and blue statue bust in profile" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-painterly/painterly-03.jpg" style="object-position: center 15%" alt="A glowing blue statue profile under an orange neon halo" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-painterly/painterly-04.jpg" style="object-position: center 15%" alt="A woman in a rainbow kimono holding a glowing pink sword" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-painterly/painterly-06.jpg" style="object-position: center 15%" alt="A blue-skinned woman with yellow earrings on lime green" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-painterly/painterly-07.jpg" style="object-position: center 15%" alt="A crowned classical statue bust in pink and blue neon" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-painterly/painterly-08.jpg" style="object-position: center 15%" alt="A man in a magenta suit and lime shirt on a magenta ground" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-painterly/painterly-09.jpg" style="object-position: center 25%" alt="A chrome liquid-metal face in profile" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-painterly/painterly-10.jpg" style="object-position: center 25%" alt="A statue in profile ringed by an orange neon halo" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-painterly/painterly-12.jpg" style="object-position: center 15%" alt="A girl with curly blue and pink hair and glowing eyes" loading="lazy" draggable="false" /></figure>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause parallax-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="ticker-draggable">
+          <div class="demo-head">
+            <h3>A ticker you can throw.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop spin:20s hover:none release:free copies:auto pause:.ticker-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="ticker-demo">Show code</button></p>
+          </div>
+          <div class="stage">
+            <div class="row" id="ticker-demo" aria-label="Cartoon clips, on a draggable ticker" data-kui="carousel-loop spin:20s hover:none release:free copies:auto pause:.ticker-pause lightbox:true">
+              <img src="./assets/cartoon/clip-skater.jpg" width="200" height="190" alt="A cartoon skater in a yellow scarf typing on a laptop" draggable="false" />
+              <img src="./assets/cartoon/clip-walker.jpg" width="200" height="190" alt="A black-and-white figure in a coat carrying a bag, on pink" draggable="false" />
+              <img src="./assets/cartoon/clip-book.jpg" width="200" height="190" alt="A figure in a red top striding over a giant book" draggable="false" />
+              <img src="./assets/cartoon/clip-dino.jpg" width="200" height="190" alt="A green cartoon dinosaur in a blue beanie, on yellow" draggable="false" />
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause ticker-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the ticker</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="ticker-rtl">
+          <div class="demo-head">
+            <h3>A ticker that reads right to left.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop spin:20s hover:none copies:auto pause:.rtl-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="rtl-demo">Show code</button></p>
+          </div>
+          <div class="stage">
+            <div class="row ticker-rtl" id="rtl-demo" dir="rtl" aria-label="Space-age portraits, on a right-to-left ticker" data-kui="carousel-loop spin:20s hover:none copies:auto pause:.rtl-pause lightbox:true">
+              <img src="./assets/retro-future/retro-16.jpg" width="200" height="190" alt="A woman in a glittering silver hood and a dark visor" draggable="false" />
+              <img src="./assets/retro-future/retro-20.jpg" width="200" height="190" alt="A blonde woman in a white and amber visor" draggable="false" />
+              <img src="./assets/retro-future/retro-24.jpg" width="200" height="190" alt="A woman in a cream visor on a teal ground" draggable="false" />
+              <img src="./assets/retro-future/retro-26.jpg" width="200" height="190" alt="A gold mirrored helmet and a black high collar" draggable="false" />
+              <img src="./assets/retro-future/retro-28.jpg" width="200" height="190" alt="A woman in silver headphones and a holographic visor" draggable="false" />
+              <img src="./assets/retro-future/retro-31.jpg" width="200" height="190" alt="A black high collar under a gold dome helmet, on blue" draggable="false" />
+              <img src="./assets/retro-future/retro-34.jpg" width="200" height="190" alt="A gold dome helmet and a black collar against blue" draggable="false" />
+              <img src="./assets/retro-future/retro-37.jpg" width="200" height="190" alt="Chrome headphones and a rainbow visor" draggable="false" />
+              <img src="./assets/retro-future/retro-42.jpg" width="200" height="190" alt="An orange translucent suit inside a teal bubble helmet" draggable="false" />
+              <img src="./assets/retro-future/retro-49.jpg" width="200" height="190" alt="A woman in a clear yellow bubble helmet on pink" draggable="false" />
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause rtl-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the ticker</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="autoplay-timer">
+          <div class="demo-head">
+            <h3>Autoplay, with a timer you can draw.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop target:img copies:auto autoplay:3s hover:none timer:true pause:.autoplay-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="autoplay-demo">Show code</button></p>
+          </div>
+          <div class="stage">
+            <div class="row timer-row" id="autoplay-demo" aria-label="Storybook scenes, stepping on a timer" data-kui="carousel-loop target:img copies:auto autoplay:3s hover:none timer:true pause:.autoplay-pause lightbox:true">
+              <img src="./assets/anim-storybook/storybook-08.jpg" width="200" height="190" alt="A crocodile resting among giant lily pads" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-13.jpg" width="200" height="190" alt="A glass milk-bottle cottage glowing at dusk" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-14.jpg" width="200" height="190" alt="A floating island town under a crescent moon" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-16.jpg" width="200" height="190" alt="A lone traveller on a stone bridge between floating pink cliffs" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-08.jpg" width="200" height="190" alt="A crocodile resting among giant lily pads" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-13.jpg" width="200" height="190" alt="A glass milk-bottle cottage glowing at dusk" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-14.jpg" width="200" height="190" alt="A floating island town under a crescent moon" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-16.jpg" width="200" height="190" alt="A lone traveller on a stone bridge between floating pink cliffs" draggable="false" />
+              <div class="row-clock" aria-hidden="true"></div>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause autoplay-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause autoplay</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="pagination-scaling">
+          <div class="demo-head">
+            <h3>Dots that shrink with distance.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop target:img copies:auto jump:.scale-dot autoplay:3s hover:none pause:.scale-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scaling-demo">Show code</button></p>
+          </div>
+          <div class="stage" id="scaling-demo">
+            <div class="row" aria-label="Ukiyo-e portraits and scenes, with scaling dots" data-kui="carousel-loop target:img copies:auto jump:.scale-dot autoplay:3s hover:none pause:.scale-pause lightbox:true">
+              <img src="./assets/anim-ukiyoe/ukiyoe-01.jpg" width="200" height="190" alt="A pale woman with long black hair glancing over her shoulder" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-02.jpg" width="200" height="190" alt="A red-lined eye above a blue crane fan" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-03.jpg" width="200" height="190" style="object-position: center 55%" alt="A figure in an orange doorway beneath a red tree and sun" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-04.jpg" width="200" height="190" alt="A bob-haired woman in an orange and navy kimono" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-05.jpg" width="200" height="190" alt="A woman in profile in a navy kimono on yellow" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-06.jpg" width="200" height="190" alt="A downcast woman in black before a red sun" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-07.jpg" width="200" height="190" style="object-position: center 65%" alt="A pink tree and red torii gate beneath a snowy mountain" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-08.jpg" width="200" height="190" alt="A white dragon curling over a robed figure and red sun" draggable="false" />
+            </div>
+            <div class="pager">
+              <button type="button" class="scale-dot is-scaled" aria-label="Portrait 1">1</button>
+              <button type="button" class="scale-dot is-scaled" aria-label="Portrait 2">2</button>
+              <button type="button" class="scale-dot is-scaled" aria-label="Portrait 3">3</button>
+              <button type="button" class="scale-dot is-scaled" aria-label="Portrait 4">4</button>
+              <button type="button" class="scale-dot is-scaled" aria-label="Portrait 5">5</button>
+              <button type="button" class="scale-dot is-scaled" aria-label="Portrait 6">6</button>
+              <button type="button" class="scale-dot is-scaled" aria-label="Portrait 7">7</button>
+              <button type="button" class="scale-dot is-scaled" aria-label="Portrait 8">8</button>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause scale-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="pagination-arrows">
+          <div class="demo-head">
+            <h3>Arrows and numbers.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop target:img copies:auto jump:.arrow-dot next:.arrow-next prev:.arrow-prev autoplay:3s hover:none pause:.arrow-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="arrows-demo">Show code</button></p>
+          </div>
+          <div class="stage" id="arrows-demo">
+            <div class="row" aria-label="More ukiyo-e images, with arrows and numbers" data-kui="carousel-loop target:img copies:auto jump:.arrow-dot next:.arrow-next prev:.arrow-prev autoplay:3s hover:none pause:.arrow-pause lightbox:true">
+              <img src="./assets/anim-ukiyoe/ukiyoe-09.jpg" width="200" height="190" style="object-position: center 65%" alt="A woman in a red kimono wading among lily pads" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-10.jpg" width="200" height="190" alt="A woman in a pinstripe suit smoking, with a doberman" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-11.jpg" width="200" height="190" style="object-position: center 55%" alt="A lone figure in a Kyoto alley beneath a red sun" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-12.jpg" width="200" height="190" style="object-position: center 85%" alt="A woman sitting by a red door and a pink sun" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-13.jpg" width="200" height="190" style="object-position: center 60%" alt="A seated figure by a lake with a reflected red sun" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-14.jpg" width="200" height="190" alt="A woman in orange sunglasses eating dumplings with chopsticks" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-15.jpg" width="200" height="190" alt="A geisha whose face is sliced into four sets of eyes" draggable="false" />
+              <img src="./assets/anim-ukiyoe/ukiyoe-16.jpg" width="200" height="190" alt="A black-haired woman gazing up through storm clouds and flowers" draggable="false" />
+            </div>
+            <div class="pager">
+              <button type="button" class="arrow-prev wide">Previous</button>
+              <button type="button" class="arrow-dot" aria-label="Character 1">1</button>
+              <button type="button" class="arrow-dot" aria-label="Character 2">2</button>
+              <button type="button" class="arrow-dot" aria-label="Character 3">3</button>
+              <button type="button" class="arrow-dot" aria-label="Character 4">4</button>
+              <button type="button" class="arrow-dot" aria-label="Character 5">5</button>
+              <button type="button" class="arrow-dot" aria-label="Character 6">6</button>
+              <button type="button" class="arrow-dot" aria-label="Character 7">7</button>
+              <button type="button" class="arrow-dot" aria-label="Character 8">8</button>
+              <button type="button" class="arrow-next wide">Next</button>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause arrow-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="thumbnail-gallery">
+          <div class="demo-head">
+            <h3>Thumbnails as the controls.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop target:img copies:auto jump:.thumb autoplay:3s hover:none pause:.thumb-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="thumbs-demo">Show code</button></p>
+          </div>
+          <div class="stage" id="thumbs-demo">
+            <div class="row" aria-label="Storybook scenes, with thumbnails" data-kui="carousel-loop target:img copies:auto jump:.thumb autoplay:3s hover:none pause:.thumb-pause lightbox:true">
+              <img src="./assets/anim-storybook/storybook-01.jpg" width="200" height="190" alt="A boy in a red cap and a robed wizard beside a clock tower on floating rock" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-03.jpg" width="200" height="190" alt="A small figure standing in a forest, golden light pouring through the trees" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-05.jpg" width="200" height="190" alt="A purple dragon peering through a window at a mouse in a cosy library" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-06.jpg" width="200" height="190" alt="A white cottage with a crooked chimney in a mossy glade" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-07.jpg" width="200" height="190" alt="A teacup on a tower of books, a tiny door at its base" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-09.jpg" width="200" height="190" alt="A tortoise carrying a small house on its shell" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-11.jpg" width="200" height="190" alt="Snow-roofed cottages among autumn trees" draggable="false" />
+              <img src="./assets/anim-storybook/storybook-12.jpg" width="200" height="190" alt="A teal creature at a desk inside a hollow tree" draggable="false" />
+            </div>
+            <div class="pager">
+              <button type="button" class="thumb" aria-label="Clock tower"><img src="./assets/anim-storybook/storybook-01.jpg" alt="" /></button>
+              <button type="button" class="thumb" aria-label="Forest light"><img src="./assets/anim-storybook/storybook-03.jpg" alt="" /></button>
+              <button type="button" class="thumb" aria-label="Dragon at the window"><img src="./assets/anim-storybook/storybook-05.jpg" alt="" /></button>
+              <button type="button" class="thumb" aria-label="White cottage"><img src="./assets/anim-storybook/storybook-06.jpg" alt="" /></button>
+              <button type="button" class="thumb" aria-label="Teacup tower"><img src="./assets/anim-storybook/storybook-07.jpg" alt="" /></button>
+              <button type="button" class="thumb" aria-label="Tortoise house"><img src="./assets/anim-storybook/storybook-09.jpg" alt="" /></button>
+              <button type="button" class="thumb" aria-label="Snowy cottages"><img src="./assets/anim-storybook/storybook-11.jpg" alt="" /></button>
+              <button type="button" class="thumb" aria-label="Hollow tree desk"><img src="./assets/anim-storybook/storybook-12.jpg" alt="" /></button>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause thumb-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- ===================================================== SCROLL ROWS -->
+      <section id="scroll-rows" data-od-id="scroll-rows">
+        <div class="group-head">
+          <p class="kicker">Rows on scroll</p>
+          <h2 data-kui="fade-up on:enter">The page scroll drives the row.</h2>
+        </div>
+
+        <article class="demo scroll-area" id="gallery-ripple">
+          <div class="scroll-pin">
+            <div class="demo-head">
+              <h3>A wave that follows your speed.</h3>
+              <p class="kui-contract"><code>data-kui="carousel-loop copies:auto timeline:scroll distance:200vh speed:true lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="ripple-demo">Show code</button></p>
+            </div>
+            <div class="stage">
+              <div class="row ripple" id="ripple-demo" aria-label="Paper-cut art, in a wave driven by scroll" data-kui="carousel-loop copies:auto timeline:scroll distance:200vh speed:true lightbox:true">
+                <img src="./assets/anim-papercut/papercut-01.jpg" width="170" height="240" alt="A paper-cut rocket launching over curling blue waves" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-02.jpg" width="170" height="240" alt="A layered paper-cut arch framing a moonlit castle" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-03.jpg" width="170" height="240" alt="A yellow paper sun setting over striped sea" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-04.jpg" width="170" height="240" alt="A burnt match inside a red and orange paper tunnel" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-05.jpg" width="170" height="240" alt="A paper-cut lighthouse above dark stormy waves" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-06.jpg" width="170" height="240" alt="Two paper cranes before Mount Fuji and cherry trees" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-07.jpg" width="170" height="240" alt="A teal paper-cut galaxy swirl with gold stars" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-09.jpg" width="170" height="240" alt="Two astronauts on a blue paper planet" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-10.jpg" width="170" height="240" alt="A blue paper-cut dragon coiled in a colourful cave" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-12.jpg" width="170" height="240" alt="A white rocket among green paper planets" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-13.jpg" width="170" height="240" alt="A paper crescent moon over a wave and pine trees" draggable="false" />
+                <img src="./assets/anim-papercut/papercut-14.jpg" width="170" height="240" alt="An orange paper canyon with a waterfall to the sea" draggable="false" />
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo scroll-area" id="gallery-tilt">
+          <div class="scroll-pin">
+            <div class="demo-head">
+              <h3>A lean that follows your speed.</h3>
+              <p class="kui-contract"><code>data-kui="carousel-loop copies:auto timeline:scroll distance:200vh speed:true lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="tilt-demo">Show code</button></p>
+            </div>
+            <div class="stage">
+              <div class="row tilted" id="tilt-demo" aria-label="Twelve floating fantasy islands, leaning with scroll speed" data-kui="carousel-loop copies:auto timeline:scroll distance:200vh speed:true lightbox:true">
+                <img src="./assets/fantasy-islands/island-01.jpg" width="170" height="240" alt="A ruined clock-tower castle on a floating rock with three waterfalls" draggable="false" />
+                <img src="./assets/fantasy-islands/island-02.jpg" width="170" height="240" alt="A turreted castle on floating grassy islands among glowing swirls" draggable="false" />
+                <img src="./assets/fantasy-islands/island-03.jpg" width="170" height="240" alt="A lantern-lit floating island at purple and orange dusk" draggable="false" />
+                <img src="./assets/fantasy-islands/island-04.jpg" width="170" height="240" alt="Grassy floating islands with a small village among clouds" draggable="false" />
+                <img src="./assets/fantasy-islands/island-05.jpg" width="170" height="240" alt="A farmhouse island with waterfalls and airships in a bright sky" draggable="false" />
+                <img src="./assets/fantasy-islands/island-06.jpg" width="170" height="240" alt="A floating island with pink-crowned giant trees over a blue sea" draggable="false" />
+                <img src="./assets/fantasy-islands/island-07.jpg" width="170" height="240" alt="A floating island with a pink blossom tree and a purple waterfall" draggable="false" />
+                <img src="./assets/fantasy-islands/island-08.jpg" width="170" height="240" alt="A floating island with a large tree and a turquoise pool" draggable="false" />
+                <img src="./assets/fantasy-islands/island-09.jpg" width="170" height="240" alt="A blossom tree and waterfall on a floating rock under a huge moon" draggable="false" />
+                <img src="./assets/fantasy-islands/island-10.jpg" width="170" height="240" alt="A floating castle town with waterfalls and a rope bridge" draggable="false" />
+                <img src="./assets/fantasy-islands/island-11.jpg" width="170" height="240" alt="A lone floating island with a tower above an ocean of clouds" draggable="false" />
+                <img src="./assets/fantasy-islands/island-12.jpg" width="170" height="240" alt="A glowing treehouse on a floating island above pink clouds" draggable="false" />
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- ===================================================== DEPTH LINES -->
+      <section id="lines" data-od-id="lines">
+        <div class="group-head">
+          <p class="kicker">Depth lines</p>
+          <h2 data-kui="fade-up on:enter">Parallel cards, walking into the distance.</h2>
+        </div>
+
+        <article class="demo" id="gallery-showcase">
+          <div class="demo-head">
+            <h3>A line on a constant turn.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop shape:line rise:-60px depth:120px perspective:1000px yaw:-25deg spin:30s hover:none pause:.line-pause target:figure lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="line-demo">Show code</button></p>
+          </div>
+          <div class="stage line-clip">
+            <div class="line line-show" id="line-demo" aria-label="Nine rubber-hose cartoons on a depth line" data-kui="carousel-loop shape:line rise:-60px depth:120px perspective:1000px yaw:-25deg spin:30s hover:none pause:.line-pause target:figure lightbox:true">
+              <figure><img src="./assets/anim-rubberhose/rubberhose-01.jpg" alt="A boy in a cap strutting down a cartoon street" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-rubberhose/rubberhose-02.jpg" alt="A grinning grey cartoon skeleton" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-rubberhose/rubberhose-03.jpg" alt="A skeleton strutting through a shop hung with bats" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-rubberhose/rubberhose-05.jpg" alt="A smiling brain with sparkles around it" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-rubberhose/rubberhose-08.jpg" alt="A cartoon boxer with huge black gloves" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-rubberhose/rubberhose-09.jpg" alt="A sheet of rubber-hose characters in many poses" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-rubberhose/rubberhose-12.jpg" alt="A clock-faced character in a cap and bow tie" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-rubberhose/rubberhose-13.jpg" alt="A coffee cup character with one finger raised" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-rubberhose/rubberhose-14.jpg" alt="A slick villain in a tailcoat" loading="lazy" draggable="false" /></figure>
+            </div>
+          </div>
+          <div class="stage-foot">
+            <button type="button" class="motion-pause line-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause the line</button>
+          </div>
+        </article>
+
+        <article class="demo scroll-area" id="scroll-velocity-offset">
+            <div class="demo-head">
+              <h3>The line on page scroll, with speed sliding the pictures.</h3>
+              <p class="kui-contract"><code>data-kui="carousel-loop shape:line rise:-36px depth:120px perspective:1000px yaw:-25deg timeline:scroll distance:200vh speed:true target:figure lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="velocity-demo">Show code</button></p>
+            </div>
+          <div class="scroll-pin">
+            <div class="stage line-clip">
+              <div class="line line-velocity" id="velocity-demo" aria-label="Twelve glowing bioluminescent forests on a depth line driven by scroll" data-kui="carousel-loop shape:line rise:-36px depth:120px perspective:1000px yaw:-25deg timeline:scroll distance:200vh speed:true target:figure lightbox:true">
+                <figure><img src="./assets/fantasy-glowforest/glowforest-01.jpg" alt="Cyan glowing mushrooms on a mossy forest floor" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-02.jpg" alt="Blue and violet glowing trees beside a starlit stream" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-03.jpg" alt="Giant glowing orbs above a dark forest with green mist" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-04.jpg" alt="A lantern-lit treehouse village on a glowing blue river" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-05.jpg" alt="Blue butterflies and glowing bellflowers in a misty jungle" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-06.jpg" alt="A green glowing waterfall pool ringed by luminous ferns" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-07.jpg" alt="A moon framed by twisted roots above a glowing pond" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-08.jpg" alt="Glowing stags walking through a neon-veined forest" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-09.jpg" alt="Lime-green glowing mushrooms across a mossy woodland" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-10.jpg" alt="A cluster of teal glowing mushrooms on a dark log" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-13.jpg" alt="Glowing purple and blue mushrooms beside a starlit forest stream" loading="lazy" draggable="false" /></figure>
+                <figure><img src="./assets/fantasy-glowforest/glowforest-12.jpg" alt="A weeping tree draped in blue and pink lights beside a lake" loading="lazy" draggable="false" /></figure>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="gallery-archive">
+          <div class="demo-head">
+            <h3>One set of pictures, a column or a line.</h3>
+            <p class="kui-contract"><code>data-kui="carousel-loop shape:line attribute:data-layout rise:-60px depth:120px perspective:1000px yaw:-25deg spin:30s hover:none pause:.archive-pause target:figure lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="archive-demo">Show code</button></p>
+          </div>
+          <div class="pill-row" role="group" aria-label="Choose the archive arrangement">
+            <button type="button" data-archive="column">Column</button>
+            <button type="button" class="is-active" data-archive="line">Depth line</button>
+          </div>
+          <div class="archive-stage">
+            <div class="line line-archive" id="archive-demo" data-layout="line" aria-label="Eight clay characters, in a column or a depth line" data-kui="carousel-loop shape:line attribute:data-layout rise:-60px depth:120px perspective:1000px yaw:-25deg spin:30s hover:none pause:.archive-pause target:figure lightbox:true">
+              <figure><img src="./assets/anim-clay/clay-13.jpg" alt="A man in round blue glasses holding a pink phone" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-clay/clay-14.jpg" alt="A figure with fluffy lilac hair, chin on hand, beside a mug" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-clay/clay-15.jpg" alt="A woman in an orange coat and purple sneakers, mid-stride" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-clay/clay-16.jpg" alt="A grinning boy with a red nose, on red" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-clay/clay-19.jpg" alt="A creature with tall purple hair and orange glasses" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-clay/clay-20.jpg" alt="A spotted rainbow creature with antlers" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-clay/clay-21.jpg" alt="A bearded man in a fuzzy rainbow coat and hat" loading="lazy" draggable="false" /></figure>
+              <figure><img src="./assets/anim-clay/clay-22.jpg" alt="A smooth blue character sticking its tongue out" loading="lazy" draggable="false" /></figure>
+            </div>
+          </div>
+          <!-- Outside .archive-stage on purpose: the column scrolls through the stage, and a control
+               inside it ended up underneath the passing cards. -->
+          <div class="stage-foot">
+            <button type="button" class="motion-pause archive-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+          </div>
+        </article>
+      </section>
+
+      <!-- ===================================================== SLIDESHOWS -->
+      <section id="slides" data-od-id="slides">
+        <div class="group-head">
+          <p class="kicker">Slideshows and decks</p>
+          <h2 data-kui="fade-up on:enter">One picture at a time.</h2>
+        </div>
+
+        <div class="demo shows">
+          <article class="show-card" id="carousel-slide">
+            <h3><code>carousel-slide</code></h3>
+            <p class="kui-contract"><code>data-kui="carousel-slide transition:slide autoplay:4s hover:none target:'.show-list &gt; li', lightbox"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="slide-demo">Show code</button></p>
+            <div class="show" id="slide-demo" aria-label="Paper and puppet stop-motion clips, sliding" data-kui="carousel-slide transition:slide autoplay:4s hover:none target:'.show-list > li', lightbox">
+              <ul class="show-list">
+                <li><video src="./assets/anim-video/stopmo-02.mp4" poster="./assets/anim-video/stopmo-02-poster.jpg" muted loop playsinline preload="none" aria-label="A paper cloud castle on a teal ground"></video></li>
+                <li><video src="./assets/anim-video/stopmo-03.mp4" poster="./assets/anim-video/stopmo-03-poster.jpg" muted loop playsinline preload="none" aria-label="A puppet in a purple armchair"></video></li>
+                <li><video src="./assets/anim-video/stopmo-04.mp4" poster="./assets/anim-video/stopmo-04-poster.jpg" muted loop playsinline preload="none" aria-label="A paper girl riding a bicycle"></video></li>
+                <li><video src="./assets/anim-video/stopmo-05.mp4" poster="./assets/anim-video/stopmo-05-poster.jpg" muted loop playsinline preload="none" aria-label="A paper squirrel on a branch"></video></li>
+                <li><video src="./assets/anim-video/stopmo-06.mp4" poster="./assets/anim-video/stopmo-06-poster.jpg" muted loop playsinline preload="none" aria-label="A paper woman sweeping on a cutting mat"></video></li>
+              </ul>
+            </div>
+          </article>
+          <article class="show-card" id="carousel-fade">
+            <h3><code>carousel-fade</code></h3>
+            <p class="kui-contract"><code>data-kui="carousel-fade transition:fade autoplay:4s hover:none target:'.show-list &gt; li', lightbox"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="fade-demo">Show code</button></p>
+            <div class="show" id="fade-demo" aria-label="Rubber-hose cartoons, fading" data-kui="carousel-fade transition:fade autoplay:4s hover:none target:'.show-list > li', lightbox">
+              <ul class="show-list">
+                <li><img src="./assets/anim-rubberhose/rubberhose-10.jpg" alt="A 1930s cartoon dog trotting down a street" loading="lazy" /></li>
+                <li><img src="./assets/anim-rubberhose/rubberhose-18.jpg" alt="A bus full of cartoon ghosts rolling through a haunted wood" loading="lazy" /></li>
+                <li><img src="./assets/anim-rubberhose/rubberhose-04.jpg" alt="A cartoon skeleton dancing inside a dark circle" loading="lazy" /></li>
+                <li><img src="./assets/anim-rubberhose/rubberhose-16.jpg" alt="A round-headed cartoon character throwing a punch" loading="lazy" /></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+
+        <article class="demo" id="carousel">
+          <div class="demo-head">
+            <h3>The step deck.</h3>
+            <p class="kui-contract"><code>data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85 autoplay:4s hover:none pause:.deck-pause lightbox:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="deck-demo">Show code</button></p>
+          </div>
+          <div class="stage">
+            <div class="deck-shell" id="deck-demo" data-kui="carousel target:'.deck-slide, .deck-dot' next:.deck-next prev:.deck-prev jump:.deck-dot peek:56% rest:0.6 main:0.85 autoplay:4s hover:none pause:.deck-pause lightbox:true">
+              <button type="button" class="deck-arrow deck-prev" aria-label="Previous picture"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5 L8 12 L15 19" /></svg></button>
+              <div class="deck-viewport">
+                <div class="deck-track">
+                  <figure class="deck-slide"><img src="./assets/retro-future/retro-29.jpg" alt="A woman in a white mini dress and white boots on a curving white space-age terrace" loading="lazy" /></figure>
+                  <figure class="deck-slide"><img src="./assets/retro-future/retro-38.jpg" alt="A figure in a yellow dome helmet lounging in a blue chair before a sea window" loading="lazy" /></figure>
+                  <figure class="deck-slide"><img src="./assets/retro-future/retro-44.jpg" alt="A woman with a pale suitcase on a retro spaceport promenade, a rocket behind" loading="lazy" /></figure>
+                  <figure class="deck-slide"><img src="./assets/retro-future/retro-45.jpg" alt="A dancer in a polka-dot dress in a space-age lounge" loading="lazy" /></figure>
+                  <figure class="deck-slide"><img src="./assets/retro-future/retro-23.jpg" alt="A woman in a white helmet with an orange visor, on white" loading="lazy" /></figure>
+                </div>
+              </div>
+              <button type="button" class="deck-arrow deck-next" aria-label="Next picture"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 L16 12 L9 19" /></svg></button>
+              <div class="deck-dots">
+                <button type="button" class="deck-dot" aria-label="Picture 1"></button>
+                <button type="button" class="deck-dot" aria-label="Picture 2"></button>
+                <button type="button" class="deck-dot" aria-label="Picture 3"></button>
+                <button type="button" class="deck-dot" aria-label="Picture 4"></button>
+                <button type="button" class="deck-dot" aria-label="Picture 5"></button>
+              </div>
+            </div>
+            <div class="stage-foot">
+              <button type="button" class="motion-pause deck-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg>Pause</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" data-od-id="vertical-decks">
+          <div class="demo-head">
+            <h3>The same deck, stood on end.</h3>
+          </div>
+          <div class="stage vdecks">
+            <div class="vdeck-card">
+              <h4>With <code>swipe-y</code></h4>
+              <p>Flick up or down on the deck — on a phone, a finger here swipes the deck instead of scrolling the page.</p>
+              <p class="kui-contract"><code>&lt;div data-kui="swipe-y"&gt;&lt;div data-kui="carousel …"&gt;</code><button type="button" class="kui-show-code-toggle" data-show-code-target="vdeck-swipe-demo">Show code</button></p>
+              <div class="vdeck-swipe" id="vdeck-swipe-demo" data-kui="swipe-y">
+                <div class="vdeck" data-kui="carousel target:'.vdeck-slide, .deck-dot' next:.vdeck-down prev:.vdeck-up jump:.deck-dot peek:56% rest:0.6 main:0.85">
+                  <div class="vdeck-viewport">
+                    <div class="vdeck-track">
+                      <figure class="vdeck-slide"><img src="./assets/retro-future/retro-07.jpg" alt="A woman in a clear bubble helmet with a rainbow edge and a lens flare" loading="lazy" draggable="false" /></figure>
+                      <figure class="vdeck-slide"><img src="./assets/retro-future/retro-18.jpg" alt="A woman in a transparent helmet and plastic suit against a teal sky" loading="lazy" draggable="false" /></figure>
+                      <figure class="vdeck-slide"><img src="./assets/retro-future/retro-06.jpg" alt="A woman in a yellow dome helmet and white-rimmed round goggles" loading="lazy" draggable="false" /></figure>
+                      <figure class="vdeck-slide"><img src="./assets/retro-future/retro-47.jpg" alt="A figure in a black cylinder hat, a half-black half-white face and chrome spheres for eyes" loading="lazy" draggable="false" /></figure>
+                      <figure class="vdeck-slide"><img src="./assets/retro-future/retro-15.jpg" alt="A woman in a yellow helmet with a huge blue lens and floating blue spheres" loading="lazy" draggable="false" /></figure>
+                    </div>
+                  </div>
+                  <div class="vdeck-ctrl">
+                    <button type="button" class="deck-arrow vdeck-up" aria-label="Previous slide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15 L12 8 L19 15" /></svg></button>
+                    <div class="vdeck-dots">
+                      <button type="button" class="deck-dot" aria-label="Slide 1"></button>
+                      <button type="button" class="deck-dot" aria-label="Slide 2"></button>
+                      <button type="button" class="deck-dot" aria-label="Slide 3"></button>
+                      <button type="button" class="deck-dot" aria-label="Slide 4"></button>
+                      <button type="button" class="deck-dot" aria-label="Slide 5"></button>
+                    </div>
+                    <button type="button" class="deck-arrow vdeck-down" aria-label="Next slide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9 L12 16 L19 9" /></svg></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="vdeck-card">
+              <h4>Arrows and dots only</h4>
+              <p>No gesture layer: the page scrolls straight through it, and the buttons do the stepping.</p>
+              <p class="kui-contract"><code>data-kui="carousel target:'.vdeck-slide, .deck-dot' next:.vdeck-down prev:.vdeck-up jump:.deck-dot peek:56% rest:0.6 main:0.85"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="vdeck-plain-demo">Show code</button></p>
+              <div class="vdeck" id="vdeck-plain-demo" data-kui="carousel target:'.vdeck-slide, .deck-dot' next:.vdeck-down prev:.vdeck-up jump:.deck-dot peek:56% rest:0.6 main:0.85">
+                <div class="vdeck-viewport">
+                  <div class="vdeck-track">
+                    <figure class="vdeck-slide"><img src="./assets/retro-future/retro-41.jpg" alt="A woman with an orange bob and a silver band visor, in a red turtleneck" loading="lazy" draggable="false" /></figure>
+                    <figure class="vdeck-slide"><img src="./assets/retro-future/retro-32.jpg" alt="A woman in a chrome helmet with a sun flare and teardrop earrings" loading="lazy" draggable="false" /></figure>
+                    <figure class="vdeck-slide"><img src="./assets/retro-future/retro-22.jpg" alt="A woman in a mirrored helmet and a pleated metallic collar" loading="lazy" draggable="false" /></figure>
+                    <figure class="vdeck-slide"><img src="./assets/retro-future/retro-25.jpg" alt="A woman in a liquid-chrome visor helmet against a deep blue sky" loading="lazy" draggable="false" /></figure>
+                    <figure class="vdeck-slide"><img src="./assets/retro-future/retro-36.jpg" alt="A figure in a silver suit with a mirror-sphere head on a white salt flat" loading="lazy" draggable="false" /></figure>
+                  </div>
+                </div>
+                <div class="vdeck-ctrl">
+                  <button type="button" class="deck-arrow vdeck-up" aria-label="Previous slide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15 L12 8 L19 15" /></svg></button>
+                  <div class="vdeck-dots">
+                    <button type="button" class="deck-dot" aria-label="Slide 1"></button>
+                    <button type="button" class="deck-dot" aria-label="Slide 2"></button>
+                    <button type="button" class="deck-dot" aria-label="Slide 3"></button>
+                    <button type="button" class="deck-dot" aria-label="Slide 4"></button>
+                    <button type="button" class="deck-dot" aria-label="Slide 5"></button>
+                  </div>
+                  <button type="button" class="deck-arrow vdeck-down" aria-label="Next slide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9 L12 16 L19 9" /></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- ===================================================== MARQUEES -->
+      <section id="marquees" data-od-id="marquees">
+        <div class="group-head">
+          <p class="kicker">Marquees</p>
+          <h2 data-kui="fade-up on:enter">A strip that just keeps going.</h2>
+        </div>
+
+        <article class="demo" id="marquee">
+          <div class="demo-head">
+            <h3><code>marquee</code></h3>
+            <p class="kui-contract"><code>data-kui="marquee 50s"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="marquee-demo">Show code</button></p>
+          </div>
+          <div class="marquee-view">
+            <div id="marquee-demo" data-kui="marquee 50s">
+              <div class="marquee-set">
+                <img src="./assets/retro-future/retro-17.jpg" alt="A woman in a glittering silver mesh hood and collar" loading="lazy" />
+                <img src="./assets/candy-architecture/candy-23.jpg" alt="Nested pastel arches opening onto a cloudy sky" loading="lazy" />
+                <img src="./assets/retro-future/retro-46.jpg" alt="A woman in a pointed white hat and teal eye make-up" loading="lazy" />
+                <img src="./assets/retro-future/retro-51.jpg" alt="A curled blonde woman wearing a cloud-print visor and a gold chain" loading="lazy" />
+                <img src="./assets/retro-future/retro-39.jpg" alt="A woman in white lying on a silver saucer in a dusk desert" loading="lazy" />
+              </div>
+              <div class="marquee-set" aria-hidden="true">
+                <img src="./assets/retro-future/retro-17.jpg" alt="" loading="lazy" />
+                <img src="./assets/candy-architecture/candy-23.jpg" alt="" loading="lazy" />
+                <img src="./assets/retro-future/retro-46.jpg" alt="" loading="lazy" />
+                <img src="./assets/retro-future/retro-51.jpg" alt="" loading="lazy" />
+                <img src="./assets/retro-future/retro-39.jpg" alt="" loading="lazy" />
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="demo" id="marquee-scroll-linked">
+          <div class="demo-head">
+            <h3><code>marquee-scroll-linked</code></h3>
+            <p class="kui-contract"><code>data-kui="marquee-scroll-linked timeline:'scroll 96% 100%'"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="marquee-scroll-demo">Show code</button></p>
+          </div>
+          <div class="marquee-view">
+            <div id="marquee-scroll-demo" data-kui="marquee-scroll-linked timeline:'scroll 96% 100%'">
+              <div class="marquee-set">
+                <img src="./assets/showcase-new/rings/apple.webp" alt="A green glass apple on a green ground" loading="lazy" />
+                <img src="./assets/showcase-new/rings/cherries.webp" alt="A pair of cherries on red" loading="lazy" />
+                <img src="./assets/showcase-new/rings/egg.webp" alt="A white egg casting a long shadow" loading="lazy" />
+                <img src="./assets/showcase-new/rings/lemon.webp" alt="A lemon on yellow" loading="lazy" />
+                <img src="./assets/showcase-new/rings/pot.webp" alt="A terracotta pot on a terracotta ground" loading="lazy" />
+                <img src="./assets/showcase-new/rings/ribbon.webp" alt="A knotted ribbon on lilac" loading="lazy" />
+              </div>
+              <div class="marquee-set" aria-hidden="true">
+                <img src="./assets/showcase-new/rings/apple.webp" alt="" loading="lazy" />
+                <img src="./assets/showcase-new/rings/cherries.webp" alt="" loading="lazy" />
+                <img src="./assets/showcase-new/rings/egg.webp" alt="" loading="lazy" />
+                <img src="./assets/showcase-new/rings/lemon.webp" alt="" loading="lazy" />
+                <img src="./assets/showcase-new/rings/pot.webp" alt="" loading="lazy" />
+                <img src="./assets/showcase-new/rings/ribbon.webp" alt="" loading="lazy" />
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <div class="demo-hero-actions" style="margin-top:3rem; display:flex; flex-wrap:wrap; gap:1rem;">
+          <a href="./docs.html?doc=catalog" class="btn btn-accent" data-kui="shine-sweep">Read the catalog docs →</a>
+          <a href="#top" class="btn btn-ghost">Back to the top</a>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer data-od-id="footer" data-footer-mount></footer>
+
+  <!-- data-kui-manual: the inline script below starts the one animator, with this page's options. -->
+  <script src="./kuinetic.js" data-kui-manual></script>
+  <script>
+    window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+
+    // The switcher's only job is to rewrite one attribute. `observe: true` reinstalls the effect.
+    ;(function () {
+      const deck = document.getElementById('switcher-deck')
+      const line = document.getElementById('switcher-attr')
+      const buttons = document.querySelectorAll('[data-switch]')
+      buttons.forEach(button => button.addEventListener('click', () => {
+        deck.setAttribute('data-kui', button.dataset.switch)
+        line.textContent = `data-kui="${button.dataset.switch}"`
+        buttons.forEach(other => other.classList.toggle('is-active', other === button))
+      }))
+
+      // Gallery archive: the app owns the attribute, the library owns the flight.
+      const archive = document.getElementById('archive-demo')
+      const archiveButtons = document.querySelectorAll('[data-archive]')
+      archiveButtons.forEach(button => button.addEventListener('click', () => {
+        archive.dataset.layout = button.dataset.archive
+        archiveButtons.forEach(other => other.classList.toggle('is-active', other === button))
+      }))
+    })()
+
+    // Stop-motion slides: only the active slide's video plays, never under reduced motion,
+    // off-screen, or while the slideshow's own pause button is pressed.
+    ;(function () {
+      const show = document.getElementById('slide-demo')
+      if (!show) return
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)')
+      let inView = true
+      const sync = () => {
+        const pauseBtn = show.querySelector('.kui-slideshow-controls [aria-pressed]')
+        const held = reduce.matches || !inView || (pauseBtn && pauseBtn.getAttribute('aria-pressed') === 'true')
+        show.querySelectorAll('.show-list > li').forEach(li => {
+          const video = li.querySelector('video')
+          if (!video) return
+          if (li.getAttribute('data-kui-step-state') === 'active' && !held) video.play().catch(() => {})
+          else video.pause()
+        })
+      }
+      new MutationObserver(sync).observe(show, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-kui-step-state', 'aria-pressed'] })
+      new IntersectionObserver(entries => { inView = entries[entries.length - 1].isIntersecting; sync() }).observe(show)
+      reduce.addEventListener('change', sync)
+      sync()
+    })()
+  </script>
+  <script src="./replay.js"></script>
+  <script src="./show-code.js"></script>
+</body>
+</html>

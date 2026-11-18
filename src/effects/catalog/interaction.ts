@@ -665,13 +665,15 @@ function prepareCursorDot(el: Element, params: EffectParams, ctx: PrepareContext
 /**
  * Publish the pointer position as `--kui-x`/`--kui-y` custom properties for `cursor-spotlight`'s
  * `radial-gradient` to read — direct 1:1 tracking rather than a spring, since a light source
- * lagging behind the cursor reads as broken rather than smooth.
+ * lagging behind the cursor reads as broken rather than smooth. The flashlight variant rests with
+ * its veil up and the light parked in the middle, on setup, pointerleave and blur alike.
  *
  * @complexity O(1) per pointer event; O(1) space.
  * @overallScore 100
  */
 function prepareSpotlight(el: Element, params: EffectParams, ctx: PrepareContext): Cleanup {
   if (!supportsFineHover(ctx.win)) return () => {}
+  const parked = params.is('gradient', 'flashlight')
   const node = el as HTMLElement
   // The glow overlay is `position: absolute; inset: 0`, keyed off `::before` in CSS — it needs a
   // positioned ancestor to anchor to. Only claimed when the author left `position` at its
@@ -689,7 +691,7 @@ function prepareSpotlight(el: Element, params: EffectParams, ctx: PrepareContext
     writeSpot(`${(event.clientX - rect.left).toFixed(1)}px`, `${(event.clientY - rect.top).toFixed(1)}px`, true)
   }
   function hide(): void {
-    writeSpot('50%', '50%', false)
+    writeSpot('50%', '50%', parked)
   }
   function onFocus(): void {
     writeSpot('50%', '50%', true)
@@ -699,6 +701,7 @@ function prepareSpotlight(el: Element, params: EffectParams, ctx: PrepareContext
   node.addEventListener('pointerleave', hide, { passive: true })
   node.addEventListener('focus', onFocus)
   node.addEventListener('blur', hide)
+  if (parked) writeSpot('50%', '50%', true)
 
   return () => {
     node.removeEventListener('pointermove', onMove)
@@ -726,6 +729,16 @@ const cursorDotParams: ParameterSchema = {
   'dot-class': { type: 'text', default: '', cssProperty: '--kui-cursor-class' },
 }
 
+const SPOTLIGHT_CONIC = 'conic-gradient(at var(--kui-x, 50%) var(--kui-y, 50%), var(--kui-spotlight-colors, var(--accent, #d2691e), transparent, var(--accent, #d2691e)))'
+// A veil over the whole box with a soft hole at the pointer: size and veil colour are the author's
+// to tune through `--kui-spotlight-size` and `--kui-spotlight-veil`.
+const SPOTLIGHT_FLASHLIGHT = 'radial-gradient(circle var(--kui-spotlight-size, 180px) at var(--kui-x, 50%) var(--kui-y, 50%), transparent 0 40%, var(--kui-spotlight-veil, rgb(0 0 0 / 0.86)) 100%)'
+
+const SPOTLIGHT_PAINT: Record<string, string | undefined> = {
+  conic: SPOTLIGHT_CONIC,
+  flashlight: SPOTLIGHT_FLASHLIGHT,
+}
+
 export const POINTER_PRIMITIVES: Primitive[] = [
   CURSOR_TRAIL,
   // `skew` is the `transform` shorthand's channel, which is what `prepareTilt3d` writes (a
@@ -744,15 +757,19 @@ export const POINTER_PRIMITIVES: Primitive[] = [
   {
     ...pointerPrimitive(
       'cursor-spotlight', ['spotlight', 'pseudo-before', 'position'],
-      { gradient: { type: 'keyword', default: 'radial', keywords: ['radial', 'conic'], cssProperty: '--kui-spotlight-gradient' } },
+      { gradient: { type: 'keyword', default: 'radial', keywords: ['radial', 'conic', 'flashlight'], cssProperty: '--kui-spotlight-gradient' } },
       deferPrepare(prepareSpotlight),
     ),
     variantFor(spec) {
-      if (spec.params.gradient !== 'conic') return {}
-      const paint = 'conic-gradient(at var(--kui-x, 50%) var(--kui-y, 50%), var(--kui-spotlight-colors, var(--accent, #d2691e), transparent, var(--accent, #d2691e)))'
-      return { params: { ...spec.params, paint }, schema: {
+      const paint = SPOTLIGHT_PAINT[spec.params.gradient ?? '']
+      if (paint === undefined) return {}
+      const schema: ParameterSchema = {
         paint: { type: 'keyword', default: paint, keywords: [paint], cssProperty: '--kui-spotlight-paint' },
-      } }
+      }
+      if (spec.params.gradient !== 'flashlight') return { params: { ...spec.params, paint }, schema }
+      // The flashlight's veil has to sit above the host's own content, so it takes a layer.
+      schema.layer = { type: 'keyword', default: '1', keywords: ['1'], cssProperty: '--kui-spotlight-layer' }
+      return { params: { ...spec.params, paint, layer: '1' }, schema }
     },
   },
 ]

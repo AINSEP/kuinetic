@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
 import { Registry } from '../src/core/registry.js'
+import { catalogRegistry } from './support/registry.js'
 import { createParams } from '../src/core/js-params.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
 import type { PrepareContext } from '../src/core/effect-context.js'
@@ -212,6 +215,47 @@ describe('pointer-tracking effects (real JS)', () => {
     expect((el as HTMLElement).style.getPropertyValue('--kui-spotlight-opacity')).toBe('0')
 
     instance.destroy()
+  })
+
+  it('cursor-spotlight gradient:flashlight starts veiled and parked, tracks the pointer, and re-parks on leave and blur', () => {
+    const resolved = registry().resolve('cursor-spotlight')!
+    const el = document.createElement('div')
+    document.body.append(el)
+    stubRect(el, { left: 10, top: 10, width: 100, height: 100 })
+    const style = (name: string): string => (el as HTMLElement).style.getPropertyValue(name)
+
+    const instance = resolved.primitive.prepare!(el, createParams({ gradient: 'flashlight' }), fakeCtx(el))
+    instance.activate()
+    expect(style('--kui-spotlight-opacity')).toBe('1')
+    expect(style('--kui-x')).toBe('50%')
+    expect(style('--kui-y')).toBe('50%')
+
+    el.dispatchEvent(pointerEvent('pointermove', 60, 40))
+    expect(style('--kui-x')).toBe('50.0px')
+    expect(style('--kui-y')).toBe('30.0px')
+    expect(style('--kui-spotlight-opacity')).toBe('1')
+
+    el.dispatchEvent(new Event('pointerleave'))
+    expect(style('--kui-x')).toBe('50%')
+    expect(style('--kui-spotlight-opacity')).toBe('1')
+
+    el.dispatchEvent(pointerEvent('pointermove', 20, 20))
+    el.dispatchEvent(new Event('blur'))
+    expect(style('--kui-x')).toBe('50%')
+    expect(style('--kui-spotlight-opacity')).toBe('1')
+
+    instance.destroy()
+  })
+
+  it('cursor-spotlight gradient:flashlight compiles its veil paint and layer; conic keeps its paint and no layer', () => {
+    const flash = compile(parse('cursor-spotlight gradient:flashlight'), catalogRegistry(), 'time')
+    expect(flash.warnings).toEqual([])
+    expect(flash.vars['--kui-spotlight-paint']).toContain('var(--kui-spotlight-veil')
+    expect(flash.vars['--kui-spotlight-layer']).toBe('1')
+    const conic = compile(parse('cursor-spotlight gradient:conic'), catalogRegistry(), 'time')
+    expect(conic.warnings).toEqual([])
+    expect(conic.vars['--kui-spotlight-paint']).toContain('conic-gradient(at var(--kui-x, 50%) var(--kui-y, 50%)')
+    expect(conic.vars['--kui-spotlight-layer']).toBeUndefined()
   })
 
   it('tilt-parallax moves [data-depth] children opposite the pointer, scaled by depth', () => {

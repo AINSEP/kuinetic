@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic — Ambient &amp; Feedback</title>
-<meta name="description" content="Continuous ambient-background and event-driven feedback patterns for kUInetic's data-kui effects — gradients, noise, scanlines, spinners, toasts, and click reactions, compiled to real CSS, zero animation-loop JS." />
+<meta name="description" content="Continuous ambient-background and event-driven feedback patterns for kUInetic's data-kui effects — gradients, scanlines, spinners, toasts, click reactions, SVG icon draws and morphs, line art and glass." />
 <script>
   ;(function () {
     var KEY = 'kuinetic-showcase-theme'
@@ -237,6 +237,78 @@
     width: 100%; height: 64px; border-radius: 8px; border: 1px dashed var(--border);
     display: grid; place-items: center; color: var(--muted); font-size: 0.8rem;
   }
+
+  /* --- option tiles (wobble direction:pointer, confetti-burst pieces:) --- */
+  .tile-row { width: 100%; display: flex; gap: 0.75rem; justify-content: center; }
+  .tile { flex: 1 1 0; min-width: 0; max-width: 64px; aspect-ratio: 1; padding: 0; border: 0; border-radius: 12px; background: var(--accent); cursor: pointer; }
+  .tile:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .demo-card.tone-a .tile { background: var(--accent-ink); }
+  /* Generated confetti pieces fly past the host, so this one card cannot clip them. */
+  .demo-card.is-open { overflow: visible; }
+  .demo-card.is-open figcaption { border-radius: 0 0 11px 11px; }
+  .confetti-host { padding: 0.75rem 1.4rem; border: 1px solid currentColor; border-radius: 999px; background: none; color: inherit; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+
+  /* ---------- E: SVG & icons ---------- */
+  /* A stage that is also a control: the click replays or toggles what is inside it. */
+  .icon-stage { width: 100%; padding: 0; border: 0; font: inherit; color: inherit; cursor: pointer; }
+  .icon-stage:focus-visible { outline: 2px solid var(--fg); outline-offset: -4px; }
+  .ambient-stage svg { width: 84px; height: 84px; overflow: visible; }
+  .ambient-stage svg.is-wide { width: 70%; height: auto; }
+  .draw-path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .fill-outline { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linejoin: round; }
+  .fill-solid { fill: currentColor; }
+  .morph-shape { fill: currentColor; }
+  .logo-parts { display: flex; gap: 0.6rem; }
+  .logo-part { display: block; width: 44px; height: 44px; }
+  .logo-part-a { background: var(--accent); border-radius: 50%; }
+  .logo-part-b { background: var(--muted); border-radius: 10px; }
+  .logo-part-c { background: var(--fg); clip-path: polygon(50% 4%, 96% 96%, 4% 96%); }
+  .mini-toggle {
+    width: 3.5rem; height: 3.5rem; padding: 0; background: none; border: 1px solid currentColor;
+    border-radius: 10px; color: inherit; cursor: pointer; flex: none;
+    display: grid; place-items: center;
+  }
+  /* plus-to-minus crosses its two bars, so they share one grid cell. */
+  .mini-toggle .kui-bar { grid-area: 1 / 1; width: 22px; height: 3px; border-radius: 2px; background: currentColor; }
+  /* play-to-pause rests as two upright bars side by side; each moves half the 4px gap to close it. */
+  .mini-toggle.is-play { display: flex; align-items: center; justify-content: center; gap: 4px; --kui-bar-gap: 2px; }
+  .mini-toggle.is-play .kui-bar { width: 9px; height: 22px; border-radius: 1px; }
+  .mini-toggle:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+
+  /* Same pause control text.html and reveals.html use. */
+  .motion-pause {
+    display: inline-flex; align-items: center; gap: 0.45rem; margin-top: 1rem;
+    padding: 0.5rem 0.95rem; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 0.8rem; font-weight: 600;
+    background: transparent; color: var(--fg); border: 1px solid var(--border);
+  }
+  .motion-pause:hover { border-color: var(--fg); }
+  .motion-pause[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .motion-pause svg { width: 12px; height: 12px; fill: currentColor; }
+
+  /* ---------- G: line art ---------- */
+  .demo-card.is-full { grid-column: 1 / -1; }
+  .boil-row { flex: none; display: grid; background: #ffffff; }
+  @media (min-width: 560px) { .boil-row { grid-template-columns: repeat(3, 1fr); } }
+  /* The filter moves a picture's edges too, so each cell crops them away. */
+  .boil-cell { display: block; overflow: clip; }
+  .boil-row img { aspect-ratio: 1; transform: scale(1.04); }
+
+  /* ---------- L + S: loading bar, glass ---------- */
+  @media (min-width: 560px) { .demo-card.is-wide { grid-column: span 2; } }
+  .transition-window { border: 1px solid var(--border); border-radius: 10px; overflow: clip; background: var(--bg); }
+  .transition-chrome { display: flex; gap: 5px; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .transition-chrome span { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+  .transition-view { padding: 1.35rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; min-height: 78px; justify-content: center; }
+  .view-bar { height: 9px; border-radius: 4px; background: var(--border); }
+  .view-bar-heading { width: 62%; height: 13px; background: var(--fg); }
+  .loading-track { height: 3px; background: var(--border); }
+  .loading-fill { height: 100%; width: 100%; background: var(--fg); }
+  .ambient-stage img.glass-photo { object-position: 50% 12%; }
+  .glass-panel { position: relative; align-self: end; width: 62%; margin-bottom: 1.25rem; padding: 1.4rem 1rem; text-align: center; color: #ffffff; font-weight: 700; }
+  /* This card sits beside a taller one: its body takes the spare height, not its caption. */
+  .demo-card.is-stretch .feedback-body { flex: 1 0 auto; justify-content: center; }
+  .demo-card.is-stretch figcaption { flex: none; }
 </style>
 </head>
 <body>
@@ -500,19 +572,27 @@
         <div class="matrix-group">
           <p class="matrix-group-label">Toast — 2</p>
           <div class="demo-grid" data-kui="cascade:90ms">
-            <figure class="demo-card tone-a" style="grid-column: span 2" data-show-code>
+            <figure class="demo-card tone-a" data-show-code>
               <div class="feedback-body">
                 <div class="feedback-stage" style="align-items: stretch">
                   <div class="toast-demo">
                     <div class="toast" id="toast-demo" data-kui="toast-slide-in on:manual">Saved successfully.</div>
                   </div>
                 </div>
-                <div style="display: flex; gap: 0.6rem; flex-wrap: wrap;">
-                  <button type="button" class="btn btn-ghost" id="btn-toast-in" style="padding:0.5rem 0.9rem; font-size:0.8rem;">Show toast</button>
-                  <button type="button" class="btn btn-ghost" id="btn-toast-out" style="padding:0.5rem 0.9rem; font-size:0.8rem;">Dismiss toast</button>
-                </div>
+                <button type="button" class="btn btn-ghost" id="btn-toast-in" style="align-self:flex-start; padding:0.5rem 0.9rem; font-size:0.8rem;">Show toast</button>
               </div>
-              <figcaption>data-kui="toast-slide-in" / "toast-slide-out"</figcaption>
+              <figcaption>data-kui="toast-slide-in"</figcaption>
+            </figure>
+            <figure class="demo-card tone-b" data-show-code>
+              <div class="feedback-body">
+                <div class="feedback-stage" style="align-items: stretch">
+                  <div class="toast-demo">
+                    <div class="toast" id="toast-exit" data-kui="toast-slide-out on:manual">Saved successfully.</div>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-ghost" id="btn-toast-out" style="align-self:flex-start; padding:0.5rem 0.9rem; font-size:0.8rem;">Dismiss toast</button>
+              </div>
+              <figcaption>data-kui="toast-slide-out"</figcaption>
             </figure>
           </div>
         </div>
@@ -627,6 +707,215 @@
             </figure>
           </div>
         </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Options — 2</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card tone-a" data-show-code>
+              <div class="feedback-body">
+                <div class="feedback-stage">
+                  <div class="tile-row" data-kui="wobble direction:pointer on:hover target:.tile">
+                    <button type="button" class="tile" aria-label="First tile"></button>
+                    <button type="button" class="tile" aria-label="Second tile"></button>
+                    <button type="button" class="tile" aria-label="Third tile"></button>
+                  </div>
+                </div>
+              </div>
+              <figcaption>data-kui="wobble direction:pointer" — hover from any side</figcaption>
+            </figure>
+            <figure class="demo-card tone-b is-open" data-show-code>
+              <div class="feedback-body">
+                <div class="feedback-stage">
+                  <button type="button" class="confetti-host" style="--kui-confetti-c1:var(--accent); --kui-confetti-c2:var(--fg); --kui-confetti-c3:var(--muted); --kui-confetti-c4:var(--accent); --kui-confetti-c5:var(--fg);" data-kui="confetti-burst pieces:48 on:click">Celebrate</button>
+                </div>
+              </div>
+              <figcaption>data-kui="confetti-burst pieces:48" — click me</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- E: SVG & ICONS -->
+      <section id="icons" data-od-id="icons">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">E — SVG &amp; icons</h2>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Draws — 3</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card tone-a" data-show-code>
+              <button type="button" class="ambient-stage icon-stage" aria-label="Replay the checkmark">
+                <svg viewBox="0 0 48 48" aria-hidden="true">
+                  <path class="draw-path" d="M8 26 L20 38 L40 10" pathLength="100" data-kui="checkmark-draw on:enter" />
+                </svg>
+              </button>
+              <figcaption>data-kui="checkmark-draw" — click me</figcaption>
+            </figure>
+            <figure class="demo-card tone-b" data-show-code>
+              <button type="button" class="ambient-stage icon-stage" aria-label="Replay the cross">
+                <svg viewBox="0 0 48 48" aria-hidden="true">
+                  <path class="draw-path" d="M10 10 L38 38 M38 10 L10 38" pathLength="100" data-kui="cross-draw on:enter" />
+                </svg>
+              </button>
+              <figcaption>data-kui="cross-draw" — click me</figcaption>
+            </figure>
+            <figure class="demo-card tone-a" data-show-code>
+              <button type="button" class="ambient-stage icon-stage" aria-label="Replay the signature">
+                <svg class="is-wide" viewBox="0 0 100 40" aria-hidden="true">
+                  <path class="draw-path" d="M4 30 C 10 10, 18 10, 22 24 C 26 38, 30 12, 40 20 C 48 26, 46 40, 56 32 C 64 26, 70 14, 80 20 C 88 24, 84 36, 96 30" pathLength="100" data-kui="draw-signature on:enter" />
+                </svg>
+              </button>
+              <figcaption>data-kui="draw-signature" — click me</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Fills — 2</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card tone-b" data-show-code>
+              <button type="button" class="ambient-stage icon-stage fill-toggle" aria-pressed="false" aria-label="Like">
+                <svg viewBox="0 0 64 60" aria-hidden="true">
+                  <path class="fill-outline" d="M32,54 C12,40 4,28 4,17 C4,7 12,2 20,6 C26,9 30,13 32,18 C34,13 38,9 44,6 C52,2 60,7 60,17 C60,28 52,40 32,54 Z" />
+                  <path class="fill-solid" d="M32,54 C12,40 4,28 4,17 C4,7 12,2 20,6 C26,9 30,13 32,18 C34,13 38,9 44,6 C52,2 60,7 60,17 C60,28 52,40 32,54 Z" data-kui="heart-fill on:manual" />
+                </svg>
+              </button>
+              <figcaption>data-kui="heart-fill" — click me</figcaption>
+            </figure>
+            <figure class="demo-card tone-a" data-show-code>
+              <button type="button" class="ambient-stage icon-stage fill-toggle" aria-pressed="false" aria-label="Bookmark">
+                <svg viewBox="0 0 48 60" aria-hidden="true">
+                  <path class="fill-outline" d="M8,4 L40,4 L40,56 L24,44 L8,56 Z" />
+                  <path class="fill-solid" d="M8,4 L40,4 L40,56 L24,44 L8,56 Z" data-kui="bookmark-fill on:manual" />
+                </svg>
+              </button>
+              <figcaption>data-kui="bookmark-fill" — click me</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Icon toggles — 2</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card tone-a" data-show-code>
+              <div class="ambient-stage">
+                <button type="button" class="mini-toggle is-play" data-kui="play-to-pause" aria-pressed="false" aria-label="Play" data-demo-toggle="play">
+                  <span class="kui-bar"></span><span class="kui-bar"></span>
+                </button>
+              </div>
+              <figcaption>data-kui="play-to-pause" — click me</figcaption>
+            </figure>
+            <figure class="demo-card tone-b" data-show-code>
+              <div class="ambient-stage">
+                <button type="button" class="mini-toggle" data-kui="plus-to-minus" aria-expanded="false" aria-label="Expand" data-demo-toggle="expand">
+                  <span class="kui-bar"></span><span class="kui-bar"></span>
+                </button>
+              </div>
+              <figcaption>data-kui="plus-to-minus" — click me</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Logo build — 1</p>
+          <div class="demo-grid">
+            <figure class="demo-card tone-b" data-show-code>
+              <button type="button" class="ambient-stage icon-stage" aria-label="Replay the logo build">
+                <span class="logo-parts" data-kui="logo-build target:.logo-part cascade:110ms on:enter" aria-hidden="true">
+                  <span class="logo-part logo-part-a"></span>
+                  <span class="logo-part logo-part-b"></span>
+                  <span class="logo-part logo-part-c"></span>
+                </span>
+              </button>
+              <figcaption>data-kui="logo-build" — click me</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Loops — 3</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card" data-show-code>
+              <div class="ambient-stage is-dark">
+                <svg class="is-wide" viewBox="0 0 100 30" aria-hidden="true">
+                  <path class="draw-path loop-stroke" d="M4 20 C 20 4, 36 36, 52 20 C 68 4, 84 36, 96 20" pathLength="100" style="--kui-stroke-from:#e4f222; --kui-stroke-via:#60a5fa; --kui-stroke-to:#34d399;" data-kui="gradient-stroke on:load" />
+                </svg>
+              </div>
+              <figcaption>data-kui="gradient-stroke"</figcaption>
+            </figure>
+            <figure class="demo-card tone-a" data-show-code>
+              <div class="ambient-stage">
+                <svg viewBox="0 0 64 64" aria-hidden="true">
+                  <path class="morph-shape loop-morph" d="M32,4 C56,4 60,8 60,32 C60,56 56,60 32,60 C8,60 4,56 4,32 C4,8 8,4 32,4 Z" data-kui="icon-morph loop:true 900ms ease:ease-in-out to:'M32,4 C47,4 60,17 60,32 C60,47 47,60 32,60 C17,60 4,47 4,32 C4,17 17,4 32,4 Z|M32,18 C38,2 60,2 60,22 C60,38 44,48 32,58 C20,48 4,38 4,22 C4,2 26,2 32,18 Z'" />
+                </svg>
+              </div>
+              <figcaption>data-kui="icon-morph loop:true"</figcaption>
+            </figure>
+            <figure class="demo-card tone-b" data-show-code>
+              <div class="ambient-stage">
+                <svg viewBox="0 0 64 64" aria-hidden="true">
+                  <path class="morph-shape loop-morph" d="M30,2 C50,0 62,20 60,38 C58,54 40,62 24,58 C8,54 2,36 6,20 C10,4 14,4 30,2 Z" data-kui="blob-morph loop:true 1400ms ease:ease-in-out to:'M32,6 C52,10 58,30 52,46 C46,60 26,62 14,52 C4,44 4,24 12,12 C18,4 20,2 32,6 Z|M26,4 C44,-2 64,12 60,30 C56,48 58,58 38,60 C18,62 2,50 4,32 C6,16 10,10 26,4 Z'" />
+                </svg>
+              </div>
+              <figcaption>data-kui="blob-morph loop:true"</figcaption>
+            </figure>
+          </div>
+          <button type="button" class="motion-pause" id="loops-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause</span></button>
+        </div>
+      </section>
+
+      <!-- G: LINE ART -->
+      <section id="line-art" data-od-id="line-art">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">G — Line art</h2>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Hand-drawn wobble — 1</p>
+          <div class="demo-grid">
+            <figure class="demo-card is-full" data-show-code>
+              <div class="boil-row" id="boil-row" data-kui="line-boil amount:3 fps:10 target:img">
+                <span class="boil-cell"><img src="./assets/cartoon/cartoon-03.jpg" alt="Cartoon coffee cup with eyes, gloves and big shoes, walking and pointing up, in black ink" loading="lazy" /></span>
+                <span class="boil-cell"><img src="./assets/cartoon/cartoon-09.jpg" alt="Black and white cartoon wolf head sticker with its tongue hanging out" loading="lazy" /></span>
+                <span class="boil-cell"><img src="./assets/cartoon/cartoon-05.jpg" alt="Blue cartoon bomb in sunglasses, walking and making a peace sign, with a lit fuse" loading="lazy" /></span>
+              </div>
+              <figcaption>data-kui="line-boil amount:3 fps:10"</figcaption>
+            </figure>
+          </div>
+          <button type="button" class="motion-pause" id="boil-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause</span></button>
+        </div>
+      </section>
+
+      <!-- L + S: LOADING BAR, GLASS -->
+      <section id="loading-glass" data-od-id="loading-glass">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">L &amp; S — Loading bar and glass</h2>
+        </div>
+
+        <div class="demo-grid" data-kui="cascade:90ms">
+          <figure class="demo-card tone-b is-stretch" data-show-code>
+            <div class="feedback-body">
+              <div class="transition-window">
+                <div class="transition-chrome" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div class="loading-track" aria-hidden="true"><div class="loading-fill" id="loading-fill" data-kui="loading-bar 1600ms on:enter"></div></div>
+                <div class="transition-view" aria-hidden="true">
+                  <div class="view-bar view-bar-heading"></div>
+                  <div class="view-bar"></div>
+                </div>
+              </div>
+              <button type="button" class="btn btn-ghost" id="btn-loading" style="align-self:flex-start; padding:0.5rem 0.9rem; font-size:0.8rem;">Load page</button>
+            </div>
+            <figcaption>data-kui="loading-bar"</figcaption>
+          </figure>
+          <figure class="demo-card is-wide" data-show-code>
+            <div class="ambient-stage">
+              <img class="glass-photo" src="./assets/cartoon/cartoon-14.jpg" alt="Cartoon figure in a teal number 33 jersey, an orange backwards cap and baggy jeans, walking" loading="lazy" />
+              <div class="glass-panel" data-kui="glass blur:14px">Frosted glass</div>
+            </div>
+            <figcaption>data-kui="glass"</figcaption>
+          </figure>
+        </div>
       </section>
 
     </div>
@@ -671,8 +960,82 @@
         on('btn-toast-in', 'click', function () {
           kui.play('#toast-demo', 'toast-slide-in')
         })
+        // The exit plays on the press, then the toast comes back so the button works again.
         on('btn-toast-out', 'click', function () {
-          kui.play('#toast-demo', 'toast-slide-out')
+          var toast = document.getElementById('toast-exit')
+          kui.play(toast, 'toast-slide-out').finished.then(function () {
+            setTimeout(function () { replay(toast) }, 700)
+          })
+        })
+
+        // reset + process re-opens an effect's gate: `on:enter` plays again, `on:manual` rearms.
+        // The style read between them ends the finished animation. Without it the browser keeps
+        // that animation, and the effect rearms on its last frame instead of its first.
+        function replay(el) {
+          kui.reset(el)
+          void getComputedStyle(el).animationName
+          kui.process(el)
+        }
+
+        document.querySelectorAll('.icon-stage:not(.fill-toggle)').forEach(function (stage) {
+          stage.addEventListener('click', function () {
+            replay(stage.querySelector('[data-kui]'))
+          })
+        })
+
+        on('btn-loading', 'click', function () {
+          replay(document.getElementById('loading-fill'))
+        })
+
+        // heart-fill and bookmark-fill: the click fills, the next click un-fills.
+        document.querySelectorAll('.fill-toggle').forEach(function (button) {
+          var solid = button.querySelector('[data-kui]')
+          var effect = solid.getAttribute('data-kui').split(' ')[0]
+          button.addEventListener('click', function () {
+            var on = button.getAttribute('aria-pressed') !== 'true'
+            button.setAttribute('aria-pressed', String(on))
+            if (on) kui.play(solid, effect)
+            else kui.control(solid).reverse()
+          })
+        })
+
+        // play-to-pause and plus-to-minus are CSS keyed off an aria attribute the page owns.
+        document.querySelectorAll('[data-demo-toggle]').forEach(function (button) {
+          button.addEventListener('click', function () {
+            var play = button.dataset.demoToggle === 'play'
+            var attr = play ? 'aria-pressed' : 'aria-expanded'
+            var on = button.getAttribute(attr) !== 'true'
+            button.setAttribute(attr, String(on))
+            button.setAttribute('aria-label', play ? (on ? 'Pause' : 'Play') : (on ? 'Collapse' : 'Expand'))
+          })
+        })
+
+        // These loops run for ever, so each set gets a pause button. JS loops have no playhead to
+        // hold, so pausing takes the attribute off and resuming puts it back.
+        function wirePause(button, setPaused) {
+          button.addEventListener('click', function () {
+            var paused = button.getAttribute('aria-pressed') !== 'true'
+            button.setAttribute('aria-pressed', String(paused))
+            button.querySelector('span').textContent = paused ? 'Play' : 'Pause'
+            setPaused(paused)
+          })
+        }
+        function holdAttribute(el, paused) {
+          if (paused) {
+            el.dataset.heldKui = el.getAttribute('data-kui')
+            el.removeAttribute('data-kui')
+          } else {
+            el.setAttribute('data-kui', el.dataset.heldKui)
+          }
+        }
+        wirePause(document.getElementById('loops-pause'), function (paused) {
+          var stroke = kui.control('.loop-stroke')
+          if (paused) stroke.pause()
+          else stroke.play()
+          document.querySelectorAll('.loop-morph').forEach(function (el) { holdAttribute(el, paused) })
+        })
+        wirePause(document.getElementById('boil-pause'), function (paused) {
+          holdAttribute(document.getElementById('boil-row'), paused)
         })
 
         on('btn-shake', 'click', function () {

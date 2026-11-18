@@ -80,6 +80,11 @@ export interface RingDragRequest {
   bound?(place: number): number | undefined
   /** A second axis: the gesture recognises either direction, and touch-action stays pan-y. */
   pitch?: { begin(): void; move(turns: number): void }
+  /**
+   * `'y'` for a drum (`axis:x`): the vertical movement turns it, dragging down advances it (the card
+   * waiting at the top follows the hand down). Absent or `'x'` is the ring's horizontal drag.
+   */
+  dragAxis?: 'x' | 'y'
   /** Move the ring to a continuous position and re-render. */
   moveTo(position: number): void
   /** Publish or clear the dragging state the stylesheet suspends its transition on. */
@@ -166,6 +171,8 @@ function dragPlace(request: RingDragRequest, place: number): number {
 }
 
 function releasePlace(request: RingDragRequest, from: number, vector: GestureVector, sign: number): number {
+  // Down advances, so the projection runs on the negated vertical velocity (`projectRelease` subtracts).
+  if (request.dragAxis === 'y') return snapTo(projectRelease(request.positionOf(), -vector.vy, request.travelPx))
   if (request.advanceBoth) return snapTo(from) + Number(Math.abs(vector.dx) >= request.travelPx / 4)
   const projected = request.positionAt
     ? request.positionOf()
@@ -173,8 +180,21 @@ function releasePlace(request: RingDragRequest, from: number, vector: GestureVec
   return snapTo(projected)
 }
 
+/** Where a drag has taken the ring; a drum follows the hand down, so dragging down advances it. */
+function dragPosition(request: RingDragRequest, from: number, vector: GestureVector, sign: number): number {
+  if (request.dragAxis === 'y') return from + vector.dy / request.travelPx
+  return request.positionAt?.(from, vector.dx, vector.dy) ?? from - (sign * vector.dx) / request.travelPx
+}
+
+/** Which axes the gesture reads: a drum only the vertical, a sphere or a bounded shape both. */
+function gestureAxis(request: RingDragRequest): 'x' | 'y' | 'both' {
+  if (request.dragAxis === 'y') return 'y'
+  return request.pitch || request.bound ? 'both' : 'x'
+}
+
 function freeCoast(request: RingDragRequest): ReturnType<typeof createCoast> | undefined {
-  if (!request.free) return undefined
+  // A free coast is a pixel-space glide through `positionAt`, which a drum does not have.
+  if (!request.free || request.dragAxis === 'y') return undefined
   return createCoast(request.el, request.ctx, dx => {
     request.moveFree!(request.positionAt!(request.positionOf(), dx))
   }, () => request.setDragging(false))
@@ -397,7 +417,7 @@ export function createRingDrag(request: RingDragRequest): Cleanup & { interrupt(
               moveTo(dragFrom + Math.min(0.999, Math.abs(vector.dx) / travelPx))
               return
             }
-            moveTo(request.positionAt?.(dragFrom, vector.dx, vector.dy) ?? dragFrom - (sign * vector.dx) / travelPx)
+            moveTo(dragPosition(request, dragFrom, vector, sign))
           },
           onEnd(vector) {
             selection.release()
@@ -423,7 +443,10 @@ export function createRingDrag(request: RingDragRequest): Cleanup & { interrupt(
         // a touch that starts vertically is still the page scrolling, and only one that starts
         // sideways can also tumble the sphere. A shape with real ends opens both the same way, since
         // it can move vertically without a pitch.
-        { axis: request.pitch || request.bound ? 'both' : 'x', threshold: DRAG_THRESHOLD_PX, capturePointer: 'drag', cancelVelocity: request.free },
+        // A drum reads only the vertical axis. Its `touch-action` is still `pan-y` below, so a finger
+        // swipe on a phone scrolls the page (a drum fills most of a phone screen and must never trap
+        // scrolling); only a mouse or pen drag turns it.
+        { axis: gestureAxis(request), threshold: DRAG_THRESHOLD_PX, capturePointer: 'drag', cancelVelocity: request.free },
       )
     : () => {}
 

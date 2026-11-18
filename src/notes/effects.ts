@@ -114,6 +114,12 @@ export const EFFECT_NOTES: Readonly<Record<string, readonly string[]>> = {
     'cursor-spotlight lights up the box with a soft glow that follows the pointer. No extra dot is added.',
     'The box itself stays where it is. Only the glow moves, and that is normal.',
     'The glow only shows while the pointer is over the box, or when the box has keyboard focus.',
+    'gradient:flashlight darkens the box and lights a circle round the pointer; it stays dark at rest, and on a touch screen the box stays fully lit.',
+  ],
+  'carousel-warp': [
+    'Each step jumps like a ship going to hyperspace: star streaks burst out, the old slide flies past and the new one rushes in.',
+    'Set --kui-warp-origin on the slideshow to put the burst on your picture; it is the centre by default.',
+    'Any slideshow can do this with transition:warp. With reduced motion the jump becomes a short fade.',
   ],
   carousel: [
     'target: names the slides and the dots together, like target:\'.slide, .dot\'. Any value with a comma or a space needs quotes.',

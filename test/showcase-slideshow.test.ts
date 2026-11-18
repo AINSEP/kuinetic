@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { collectingReporter } from '../src/core/reporter.js'
+import { compile } from '../src/core/compile.js'
+import { parse } from '../src/core/parse.js'
+import { catalogRegistry } from './support/registry.js'
 import { build, el } from './support/js-effect-harness.js'
 import { createRegistry } from '../src/effects/index.js'
 import { createStyleLedger } from '../src/core/owned-styles.js'
@@ -448,5 +451,75 @@ describe('showcase slideshow', () => {
     button.click()
     expect(button.getAttribute('aria-pressed')).toBe('false')
     animator.destroy()
+  })
+
+  describe('warp passage stamps', () => {
+    const stamps = (host: Element): string[] => [...host.querySelectorAll('li')].map((slide) =>
+      [slide.hasAttribute('data-kui-slideshow-leaving') ? 'leaving' : '',
+        slide.hasAttribute('data-kui-slideshow-arriving') ? 'arriving' : ''].join(''))
+
+    it('stamps the warp mode and marks nothing on the first render', () => {
+      const { animator, host } = mount('carousel-warp')
+      expect(host.getAttribute('data-kui-slideshow-mode')).toBe('warp')
+      expect(stamps(host)).toEqual(['', '', ''])
+      animator.destroy()
+    })
+
+    it('marks the slide that left and the one that arrived, clearing stale stamps', () => {
+      const { animator, host } = mount('carousel-warp')
+      const next = host.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!
+      next.click()
+      expect(stamps(host)).toEqual(['leaving', 'arriving', ''])
+      next.click()
+      expect(stamps(host)).toEqual(['', 'leaving', 'arriving'])
+      animator.destroy()
+    })
+
+    it('stamps in every mode, not only warp', () => {
+      const { animator, host } = mount('carousel-fade')
+      host.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click()
+      expect(stamps(host)).toEqual(['leaving', 'arriving', ''])
+      animator.destroy()
+    })
+
+    it('removes both stamps from every slide on teardown', () => {
+      const { animator, host } = mount('carousel-warp')
+      host.querySelector<HTMLButtonElement>('[aria-label="Next slide"]')!.click()
+      animator.destroy()
+      expect(host.querySelectorAll('[data-kui-slideshow-leaving], [data-kui-slideshow-arriving]')).toHaveLength(0)
+    })
+
+    it('lets any slideshow warp with transition:warp, with no warnings', () => {
+      const plan = compile(parse('carousel-fade transition:warp'), catalogRegistry(), 'time')
+      expect(plan.warnings).toEqual([])
+      const { animator, host } = mount('carousel-fade', 'transition:warp')
+      expect(host.getAttribute('data-kui-slideshow-mode')).toBe('warp')
+      animator.destroy()
+    })
+  })
+
+  describe('the pause control holds the whole host', () => {
+    const playState = (host: Element): string => (host as HTMLElement).style.getPropertyValue('animation-play-state')
+
+    it('pauses and resumes a starfield composed on the same host as the slideshow', () => {
+      vi.useFakeTimers()
+      const { animator, host } = mount('starfield, carousel-warp', 'autoplay:2s')
+      const pause = host.querySelector<HTMLButtonElement>('[aria-label="Pause slideshow"]')!
+      pause.click()
+      expect(playState(host)).toBe('paused')
+      host.querySelector<HTMLButtonElement>('[aria-label="Play slideshow"]')!.click()
+      expect(playState(host)).toBe('running')
+      animator.destroy()
+    })
+
+    it('writes nothing to the host until the pause control is first used', () => {
+      vi.useFakeTimers()
+      const { animator, host } = mount('carousel-warp', 'autoplay:2s')
+      expect(playState(host)).toBe('')
+      host.dispatchEvent(new Event('pointerenter'))
+      host.dispatchEvent(new Event('pointerleave'))
+      expect(playState(host)).toBe('')
+      animator.destroy()
+    })
   })
 })

@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>kUInetic — Data &amp; Hover</title>
-<meta name="description" content="Counters, SVG progress geometry, and rating fills alongside button, border, link, icon, card-tilt, and cursor hover effects for kUInetic's data-kui primitives — one HTML attribute each." />
+<meta name="description" content="Counters, charts, SVG progress geometry, and rating fills alongside button, border, link, icon, card-tilt, colour, and cursor hover effects for kUInetic's data-kui primitives — one HTML attribute each." />
 <script>
   ;(function () {
     var KEY = 'kuinetic-showcase-theme'
@@ -141,6 +141,54 @@
   .star-rating .empty { color: var(--border); }
   .star-rating .filled { position: absolute; inset: 0; color: var(--accent); --kui-fill: 70%; }
 
+  /* ---------- charts (section E) — one year of data, drawn three ways ---------- */
+  .chart-svg { display: block; width: 100%; height: auto; }
+  .chart-svg line { stroke: var(--border); stroke-width: 0.5; }
+  .chart-svg rect, .chart-area { fill: var(--accent); }
+  .chart-line { stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .chart-axis {
+    display: flex; justify-content: space-between; margin-top: 0.5rem; color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem;
+  }
+
+  /* ---------- buttons that change a demo: the same pill as carousels.html and interactive.html ---------- */
+  .pill-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .pill-row button {
+    padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid var(--border); cursor: pointer;
+    background: var(--surface); color: var(--fg); font: inherit; font-size: 0.8rem; font-weight: 590;
+  }
+  .pill-row button:hover { border-color: var(--fg); }
+  .pill-row button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+  /* ---------- live formatting (section F) ---------- */
+  .demo-grid--single { grid-template-columns: minmax(0, 30rem); }
+  .stat-body.number-body { flex-direction: column; align-items: flex-start; gap: 1rem; }
+
+  /* ---------- colour hovers (section G): the same contract line as carousels.html ---------- */
+  main .kui-contract {
+    display: inline-flex; flex-direction: row; align-items: center; justify-content: flex-start;
+    flex-wrap: nowrap; gap: 0.85rem;
+    max-width: 100%; margin: 1rem 0 0;
+    padding: 0.45rem 0.5rem 0.45rem 0.95rem;
+    border-radius: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; line-height: 1.5;
+    color: #ffffff; background: var(--accent-ink);
+  }
+  :root[data-theme='dark'] main .kui-contract { color: var(--accent-ink); background: var(--accent); }
+  main .kui-contract code {
+    min-width: 8ch; overflow-x: auto; white-space: nowrap;
+    font: inherit; color: inherit; background: none; border: none; padding: 0;
+    padding-bottom: 0.3rem;
+    scrollbar-width: thin;
+    padding-right: 1.75rem;
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
+  }
+  main .kui-contract .kui-show-code-toggle { margin: 0; opacity: 1; }
+  .matrix-group .demo-grid.colour-set { margin-top: 1rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .colour-set img { aspect-ratio: 4 / 5; object-position: 50% 20%; }
+  .colour-set img:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
   /* ---------- buttons, borders, icons (section I) ---------- */
   .fx-body { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 1.75rem 1.25rem; }
   /* Longhand border/background, not the `border`/`background` shorthands: both shorthands reset
@@ -266,7 +314,7 @@
         </div>
       </section>
 
-      <!-- NUMBERS & DATA VIZ (catalog section F, 13 names) -->
+      <!-- NUMBERS & DATA VIZ (catalog section F, 14 names, plus the three charts from section E) -->
       <section id="matrix" data-od-id="numbers">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Numbers &amp; data viz</h2>
@@ -299,6 +347,22 @@
             <div class="demo-card" data-show-code>
               <div class="stat-body"><b data-kui="odometer-roll 2000ms to:4820">0</b></div>
               <p class="demo-card-caption">data-kui="odometer-roll 2000ms to:4820"</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Live formatting — 1</p>
+          <div class="demo-grid demo-grid--paper demo-grid--single">
+            <div class="demo-card" data-show-code>
+              <div class="stat-body number-body">
+                <b id="format-number" data-kui="number-formatting attribute:data-value 400ms" data-value="1,284,350.49">1,284,350.49</b>
+                <div class="pill-row">
+                  <button type="button" aria-pressed="false" data-format="currency">Currency</button>
+                  <button type="button" aria-pressed="false" data-format="compact">Compact</button>
+                </div>
+              </div>
+              <p class="demo-card-caption">data-kui="number-formatting attribute:data-value 400ms"</p>
             </div>
           </div>
         </div>
@@ -402,9 +466,56 @@
             </div>
           </div>
         </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Charts — 3</p>
+          <div class="demo-grid demo-grid--paper">
+            <div class="demo-card" data-show-code>
+              <div class="meter-body" style="flex-direction: column; align-items: stretch;">
+                <svg class="chart-svg" viewBox="0 0 120 60" role="img" aria-label="Monthly revenue as bars, rising from 42 thousand in January to 108 thousand in December" data-kui="chart-bar-grow target:rect stagger:50ms">
+                  <line x1="0" x2="120" y1="60" y2="60" />
+                  <rect x="1.5" y="39" width="7" height="21" rx="1" />
+                  <rect x="11.5" y="36" width="7" height="24" rx="1" />
+                  <rect x="21.5" y="37.5" width="7" height="22.5" rx="1" />
+                  <rect x="31.5" y="29.5" width="7" height="30.5" rx="1" />
+                  <rect x="41.5" y="31" width="7" height="29" rx="1" />
+                  <rect x="51.5" y="24" width="7" height="36" rx="1" />
+                  <rect x="61.5" y="25.5" width="7" height="34.5" rx="1" />
+                  <rect x="71.5" y="18" width="7" height="42" rx="1" />
+                  <rect x="81.5" y="20.5" width="7" height="39.5" rx="1" />
+                  <rect x="91.5" y="12" width="7" height="48" rx="1" />
+                  <rect x="101.5" y="14.5" width="7" height="45.5" rx="1" />
+                  <rect x="111.5" y="6" width="7" height="54" rx="1" />
+                </svg>
+                <div class="chart-axis" aria-hidden="true"><span>Jan</span><span>Jun</span><span>Dec</span></div>
+              </div>
+              <p class="demo-card-caption">data-kui="chart-bar-grow target:rect stagger:50ms"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="meter-body" style="flex-direction: column; align-items: stretch;">
+                <svg class="chart-svg" viewBox="0 0 120 60" fill="none" role="img" aria-label="Monthly revenue as a line, rising from 42 thousand in January to 108 thousand in December" data-kui="chart-line-draw target:.chart-line">
+                  <line x1="0" x2="120" y1="60" y2="60" />
+                  <path class="chart-line" pathLength="100" d="M5,39 L15,36 L25,37.5 L35,29.5 L45,31 L55,24 L65,25.5 L75,18 L85,20.5 L95,12 L105,14.5 L115,6" />
+                </svg>
+                <div class="chart-axis" aria-hidden="true"><span>Jan</span><span>Jun</span><span>Dec</span></div>
+              </div>
+              <p class="demo-card-caption">data-kui="chart-line-draw target:.chart-line"</p>
+            </div>
+            <div class="demo-card" data-show-code>
+              <div class="meter-body" style="flex-direction: column; align-items: stretch;">
+                <svg class="chart-svg" viewBox="0 0 120 60" role="img" aria-label="Monthly revenue as a filled area, rising from 42 thousand in January to 108 thousand in December" data-kui="chart-area-fill target:.chart-area">
+                  <line x1="0" x2="120" y1="60" y2="60" />
+                  <path class="chart-area" d="M5,39 L15,36 L25,37.5 L35,29.5 L45,31 L55,24 L65,25.5 L75,18 L85,20.5 L95,12 L105,14.5 L115,6 L115,60 L5,60 Z" />
+                </svg>
+                <div class="chart-axis" aria-hidden="true"><span>Jan</span><span>Jun</span><span>Dec</span></div>
+              </div>
+              <p class="demo-card-caption">data-kui="chart-area-fill target:.chart-area"</p>
+            </div>
+          </div>
+        </div>
       </section>
 
-      <!-- HOVER & POINTER (catalog section I, 20 names) -->
+      <!-- HOVER & POINTER (catalog section I, 20 names, plus the three colour hovers from section G) -->
       <section data-od-id="hover">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Hover &amp; pointer</h2>
@@ -515,6 +626,22 @@
           </div>
         </div>
 
+        <div class="matrix-group" id="colour-demo">
+          <p class="matrix-group-label">Colour — 3</p>
+          <div class="pill-row">
+            <button type="button" aria-pressed="true" data-switch="grayscale-hover target:img on:hover/unhover">grayscale-hover</button>
+            <button type="button" aria-pressed="false" data-switch="saturate-hover target:img on:hover/unhover">saturate-hover</button>
+            <button type="button" aria-pressed="false" data-switch="duotone-hover target:img on:hover/unhover">duotone-hover</button>
+          </div>
+          <p class="kui-contract"><code id="colour-attr">data-kui="grayscale-hover target:img on:hover/unhover"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="colour-demo">Show code</button></p>
+          <div class="demo-grid demo-grid--paper colour-set" id="colour-set" data-kui="grayscale-hover target:img on:hover/unhover">
+            <div class="demo-card"><img src="./assets/modeling/yellow-paint-blue-bob.jpg" alt="Woman with a blue bob and dark blue lips, a patch of yellow paint across her eyes, on a yellow backdrop" tabindex="0" loading="lazy" /></div>
+            <div class="demo-card"><img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Woman in a sheer pink beaded dress with a crown of pink ruffled flowers, on a magenta backdrop" tabindex="0" loading="lazy" /></div>
+            <div class="demo-card"><img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Woman in a sculpted turquoise hat that curls around her face, on a deep teal backdrop" tabindex="0" loading="lazy" /></div>
+            <div class="demo-card"><img src="./assets/modeling/cobalt-profile.jpg" alt="Dark sculptural head in profile wearing clear glasses, lit cobalt blue, on a lilac backdrop" tabindex="0" loading="lazy" /></div>
+          </div>
+        </div>
+
         <div class="matrix-group">
           <p class="matrix-group-label">Cursor — 5</p>
           <p class="note">Each zone spawns its own follower — move the pointer across, or Tab in.</p>
@@ -537,6 +664,57 @@
   <script src="./kuinetic.js" data-kui-manual></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+
+    // number-formatting: the app owns the string, the effect animates what changed in it.
+    ;(function () {
+      const number = document.getElementById('format-number')
+      const toggles = document.querySelectorAll('[data-format]')
+      const isOn = name => document.querySelector(`[data-format="${name}"]`).getAttribute('aria-pressed') === 'true'
+      toggles.forEach(toggle => toggle.addEventListener('click', () => {
+        toggle.setAttribute('aria-pressed', String(toggle.getAttribute('aria-pressed') !== 'true'))
+        const digits = isOn('compact') ? 1 : 2
+        number.setAttribute('data-value', new Intl.NumberFormat('en-US', {
+          style: isOn('currency') ? 'currency' : 'decimal', currency: 'USD',
+          notation: isOn('compact') ? 'compact' : 'standard',
+          minimumFractionDigits: digits, maximumFractionDigits: digits,
+        }).format(1284350.49))
+      }))
+    })()
+
+    // The colour hovers: a button rewrites one attribute, and `observe: true` reinstalls the effect.
+    // Nothing hovers on a press, on arrival or on a touchscreen, so those send the pictures the same
+    // pointer events a mouse would, and the library plays the effect in and back out.
+    ;(function () {
+      const HOLD_MS = 1100
+      const set = document.getElementById('colour-set')
+      const line = document.getElementById('colour-attr')
+      const buttons = document.querySelectorAll('[data-switch]')
+      const pictures = [...set.querySelectorAll('img')]
+      const timers = new Map()
+      const playThrough = picture => {
+        clearTimeout(timers.get(picture))
+        picture.dispatchEvent(new PointerEvent('pointerenter'))
+        timers.set(picture, setTimeout(() => picture.dispatchEvent(new PointerEvent('pointerleave')), HOLD_MS))
+      }
+
+      buttons.forEach(button => button.addEventListener('click', () => {
+        set.setAttribute('data-kui', button.dataset.switch)
+        line.textContent = `data-kui="${button.dataset.switch}"`
+        buttons.forEach(other => other.setAttribute('aria-pressed', String(other === button)))
+        // After the animator's own observer has reinstalled the effect on the pictures.
+        requestAnimationFrame(() => requestAnimationFrame(() => pictures.forEach(playThrough)))
+      }))
+
+      if (matchMedia('(hover: none)').matches) {
+        set.addEventListener('click', event => { if (pictures.includes(event.target)) playThrough(event.target) })
+      }
+
+      new IntersectionObserver((entries, observer) => {
+        if (!entries[0].isIntersecting) return
+        observer.disconnect()
+        pictures.forEach(playThrough)
+      }, { threshold: 0.4 }).observe(set)
+    })()
   </script>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>

@@ -13,7 +13,7 @@ describe('slideshow CSS contract', () => {
     const plan = compile(parse('carousel-fade enter-delay:250ms'), catalogRegistry(), 'time')
     expect(plan.warnings).toEqual([])
     expect(plan.vars['--kui-slideshow-enter-delay']).toBe('250ms')
-    const hosts = ":is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > "
+    const hosts = ":is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > "
     const outgoing = ruleBodies(css, hosts + '[data-kui-step-state]').join('')
     const incoming = ruleBodies(css, hosts + "[data-kui-step-state='active']").join('')
     expect(outgoing).toContain('transition: opacity var(--kui-slideshow-duration, 500ms) var(--kui-slideshow-ease, ease);')
@@ -28,10 +28,10 @@ describe('slideshow CSS contract', () => {
   })
 
   it('scopes controls to showcase names and gives focused buttons a visible outline', () => {
-    for (const name of ['carousel-fade', 'carousel-slide', 'video-hero-slideshow']) {
+    for (const name of ['carousel-fade', 'carousel-slide', 'carousel-warp', 'video-hero-slideshow']) {
       expect(css).toContain(`[data-kui-fx~='${name}']`)
     }
-    const hosts = ":is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])"
+    const hosts = ":is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])"
     const focus = ruleBodies(css, `${hosts} .kui-slideshow-controls button:focus-visible`)
     expect(focus).toHaveLength(1)
     expect(focus[0]).toContain('outline: 2px solid Highlight;')
@@ -45,5 +45,21 @@ describe('slideshow CSS contract', () => {
     expect(buttons).toContain('color: CanvasText;')
     expect(inForced(`${hosts} .kui-slideshow-controls .kui-slideshow-dot[aria-current='true']`))
       .toContain('background: Highlight;')
+  })
+
+  it('defines the warp jump: stacked slides, streaks on the arriving slide, calm fallbacks', () => {
+    const hosts = ":is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp']"
+    const list = `${hosts} [data-kui-slideshow-list]`
+    expect(css).toContain("[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list]")
+    for (const name of ['depart', 'arrive', 'streaks', 'settle']) expect(css).toContain(`@keyframes kui-warp-${name}`)
+    const streaks = ruleBodies(css, `${list} > [data-kui-slideshow-arriving]::after`).join('')
+    expect(streaks).toContain('repeating-conic-gradient')
+    expect(streaks).toContain('var(--kui-warp-origin, 50% 50%)')
+    const reduced = atRuleBlocks(css, '@media (prefers-reduced-motion: reduce)')
+    expect(reduced.flatMap((block) => ruleBodies(block, `${list} > [data-kui-slideshow-arriving]::after`)).join(''))
+      .toContain('content: none;')
+    const forced = atRuleBlocks(css, '@media (forced-colors: active)')
+    expect(forced.flatMap((block) => ruleBodies(block, `${list} > [data-kui-slideshow-arriving]::after`)).join(''))
+      .toContain('content: none;')
   })
 })

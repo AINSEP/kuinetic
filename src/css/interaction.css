@@ -949,6 +949,7 @@
     inset: 0;
     border-radius: inherit;
     pointer-events: none;
+    z-index: var(--kui-spotlight-layer, auto);
     opacity: var(--kui-spotlight-opacity, 0);
     transition: opacity 200ms ease-out;
     background: var(--kui-spotlight-paint, radial-gradient(

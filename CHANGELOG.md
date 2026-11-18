@@ -5,6 +5,16 @@ version numbers are assigned at release.
 
 ## [Unreleased]
 
+### Added
+
+- **`carousel-warp` and `transition:warp`.** A slideshow step that jumps to hyperspace: star streaks
+  burst out, the old slide flies past and the new one rushes in. Any slideshow can use it. Slideshows
+  also mark the slide that just left (`data-kui-slideshow-leaving`) and the one that arrived
+  (`data-kui-slideshow-arriving`). The catalog is now 314 named effects.
+- **`cursor-spotlight gradient:flashlight`.** Darkens the box except a circle at the pointer.
+- **The pause control holds the whole host.** A slideshow's pause button, or a deck's `pause:`
+  control, also pauses other clock-driven effects composed on the same element, such as `starfield`.
+
 ## [0.3.0] — 2026-11-06
 
 ### Added

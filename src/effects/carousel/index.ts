@@ -270,6 +270,9 @@ const RING_PARAMETERS: ParameterSchema = {
   ...DECK_PARAMETERS,
   shape: { type: 'keyword', default: 'ring', keywords: ['ring', 'helix', 'sphere'], cssProperty: '--kui-ring-shape' },
   'drag-axis': { type: 'keyword', default: 'x', keywords: ['x', 'both'], cssProperty: '--kui-drag-axis' },
+  // `y` is a carousel turning about a vertical pole; `x` is a drum turning about a horizontal one,
+  // the next card waiting at the top — the shape for a tall, narrow screen.
+  axis: { type: 'keyword', default: 'y', keywords: ['y', 'x'], cssProperty: '--kui-ring-axis' },
   rise: { type: 'length', default: '32px', cssProperty: '--kui-helix-rise' },
   /*
    * A real CSS `<angle>`, not a normalised scalar.
@@ -380,9 +383,23 @@ function ringShape(el: Element, params: EffectParams, ctx: PrepareContext): 'hel
   return shape
 }
 
+/** The drum needs an outward depth ring: its pull-back and fit are written for that one shape. */
+function ringAxis(el: Element, params: EffectParams, ctx: PrepareContext, outwardDepth: boolean): 'x' | 'y' {
+  if (!params.is('axis', 'x')) return 'y'
+  if (outwardDepth && !el.matches("[data-kui-fx~='carousel-3d-inside']")) return 'x'
+  ctx.warn('carousel axis:x needs an outward depth ring (carousel-3d, -high, -low) with no shape:, plane:screen or -inside; ignored.')
+  return 'y'
+}
+
+/** createRingView's maths is about the vertical pole only, so a flat ring and a drum have no view. */
+function depthView(el: Element, ctx: PrepareContext, pose: { plane: string; axis: 'x' | 'y' }, shape: RingViewShape): DeckLayout['view'] {
+  return pose.plane === 'depth' && pose.axis === 'y' ? createRingView(el, ctx, shape) : undefined
+}
+
 function ringFitAttachment(el: Element, params: EffectParams, ctx: PrepareContext,
-  geometry: { shape: 'helix' | 'sphere' | undefined; plane: string; arc: number; tilt: number }) {
+  geometry: { shape: 'helix' | 'sphere' | undefined; plane: string; arc: number; tilt: number; axis: 'x' | 'y' }) {
   if (geometry.plane !== 'depth') return undefined
+  if (geometry.axis === 'x') return (styles: StyleLedger) => createHelixFit({ el, ctx, styles, params, arc: geometry.arc, tilt: geometry.tilt, drum: true })
   if (geometry.shape === 'helix') return (styles: StyleLedger) => createHelixFit({ el, ctx, styles, params, arc: geometry.arc, tilt: geometry.tilt })
   if (geometry.shape === 'sphere') return (styles: StyleLedger) => createSphereAttachment({ el, ctx, styles, params, arc: geometry.arc, tilt: geometry.tilt })
   return (styles: StyleLedger) => createRingFit({ el, ctx, styles, arcDeg: geometry.arc,
@@ -404,6 +421,7 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
   if (plane === 'depth') warnFlattenedHost(el, ctx)
   const arcDeg = degreesOf(params.text('arc', '360deg'), 360)
   const shape = ringShape(el, params, ctx)
+  const axis = ringAxis(el, params, ctx, plane === 'depth' && !shape)
   const tiltDeg = degreesOf(params.text('tilt', '0deg'), 0)
   const pitch = shape === 'sphere' && params.is('drag-axis', 'both') ? createSpherePitch(ctx, tiltDeg, arcDeg) : undefined
   const spherePitch = shape === 'sphere' ? () => pitch?.value() ?? 0 : undefined
@@ -414,8 +432,9 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
     id: 'spatial-ring',
     label: 'carousel',
     faceOf,
-    view: plane === 'depth' ? createRingView(el, ctx, { arcDeg, tiltDeg, spherePitch }) : undefined,
+    view: depthView(el, ctx, { plane, axis }, { arcDeg, tiltDeg, spherePitch }),
     pitch,
+    dragAxis: axis === 'x' ? 'y' : 'x',
     /*
      * A derived radius needs a card width; a flat ring also needs a card's size to reserve its own
      * circle (the host is sized to it, since transformed slots take no layout space), so it measures
@@ -434,13 +453,14 @@ function prepareSpatialRing(el: Element, params: EffectParams, ctx: PrepareConte
        */
       'data-kui-ring-facing': params.text('facing', 'radial'),
       'data-kui-ring-plane': plane,
+      'data-kui-ring-axis': axis,
     },
     /*
      * The fit to the page (`fit.ts`). Depth plane only: a flat ring already reserves and clamps to
      * its own square (`carousel.css`, `[data-kui-ring-plane='screen']`), and its cards never leave
      * the plane that square is measured in.
      */
-    attach: ringFitAttachment(el, params, ctx, { shape, plane, arc: arcDeg, tilt: tiltDeg }),
+    attach: ringFitAttachment(el, params, ctx, { shape, plane, arc: arcDeg, tilt: tiltDeg, axis }),
   })
 }
 
@@ -520,6 +540,7 @@ export const SPATIAL_RING_PRIMITIVE: Primitive = {
     ...SPATIAL_DECK_CHANNELS,
     attributeChannel('data-kui-ring-facing'),
     attributeChannel('data-kui-ring-plane'),
+    attributeChannel('data-kui-ring-axis'),
   ],
   parameters: RING_PARAMETERS,
   supportedTimelines: ['time', 'scroll'],
@@ -535,7 +556,9 @@ export const SPATIAL_RING_PRIMITIVE: Primitive = {
     if (spec.params['drag-axis'] === 'both' && spec.params.shape !== 'sphere') warn('carousel drag-axis:both requires shape:sphere; ignored.')
     return { channels: [...(deckSourceVariant(spec).channels ?? []),
       ...(spec.params.shape === 'helix' ? [CHANNEL.opacity, CHANNEL.scale, attributeChannel('data-kui-ring-shape')] : []),
-      ...(spec.params.shape === 'sphere' ? [CHANNEL.scale, attributeChannel('data-kui-ring-shape')] : [])] }
+      ...(spec.params.shape === 'sphere' ? [CHANNEL.scale, attributeChannel('data-kui-ring-shape')] : []),
+      // The drum's host `scale:` is written by CSS (`--kui-shape-fit`), as the helix's is.
+      ...(spec.params.axis === 'x' ? [CHANNEL.scale] : [])] }
   },
 }
 

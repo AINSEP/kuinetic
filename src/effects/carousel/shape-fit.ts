@@ -3,7 +3,7 @@ import { frameScheduler, watchElementSize } from '../../core/element-size.js'
 import { toPixels } from '../../core/js-params.js'
 import type { StyleLedger } from '../../core/owned-styles.js'
 import type { EffectParams } from '../../core/types.js'
-import { fitBounds } from './fit.js'
+import { fitBounds, reachableAngles } from './fit.js'
 
 export interface ProjectedBounds { minX: number; maxX: number; minY: number; maxY: number }
 export interface HelixGeometry {
@@ -77,7 +77,50 @@ function verticalRoom(el: Element, ctx: PrepareContext): number | null {
   return height
 }
 
-export interface ShapeFitRequest { el: Element; ctx: PrepareContext; styles: StyleLedger; params: EffectParams; arc: number; tilt: number; sphere?: boolean }
+export interface ShapeFitRequest { el: Element; ctx: PrepareContext; styles: StyleLedger; params: EffectParams; arc: number; tilt: number; sphere?: boolean; drum?: boolean }
+
+/**
+ * A drum's silhouette: `translateZ(-r) rotateY(t) rotateX(a) translateZ(r)` applied to each corner.
+ *
+ * Only the front half is sampled, because `backface-visibility: hidden` hides the rest, so the
+ * reach is the cards that can actually be seen. The host's own `rotateY(t)` is the ring tilt.
+ */
+export function projectDrum(g: HelixGeometry): ProjectedBounds {
+  const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity }
+  const { fromDeg, toDeg } = reachableAngles(g.arc, g.count)
+  const from = Math.max(-90, fromDeg), to = Math.min(90, toDeg)
+  const steps = Math.max(1, Math.ceil((to - from) / .5))
+  for (let i = 0; i <= steps; i++) {
+    const angle = (from + (to - from) * i / steps) * RAD
+    for (const [sx, sy] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+      const point = drumCorner(g, angle, sx! * g.width / 2, sy! * g.height / 2)
+      if (!point) return { minX: -Infinity, maxX: Infinity, minY: -Infinity, maxY: Infinity }
+      bounds.minX = Math.min(bounds.minX, point[0])
+      bounds.maxX = Math.max(bounds.maxX, point[0])
+      bounds.minY = Math.min(bounds.minY, point[1])
+      bounds.maxY = Math.max(bounds.maxY, point[1])
+    }
+  }
+  return bounds
+}
+
+/** A point on the card plane through rotateX(a), rotateY(t) and the pull back by the radius. */
+function drumPoint(g: HelixGeometry, [x, y]: readonly [number, number], angle: number): [number, number, number] {
+  const sinA = Math.sin(angle), cosA = Math.cos(angle)
+  const sinT = Math.sin(g.tilt * RAD), cosT = Math.cos(g.tilt * RAD)
+  const y1 = y * cosA - g.radius * sinA, z1 = y * sinA + g.radius * cosA
+  return [x * cosT + z1 * sinT, y1, -x * sinT + z1 * cosT - g.radius]
+}
+
+/** One corner's projected position, or `undefined` when it reaches the camera plane. */
+function drumCorner(g: HelixGeometry, angle: number, x: number, y: number): [number, number] | undefined {
+  // A camera-facing card keeps only its centre on the drum; its corners are laid flat.
+  const [cx, cy, cz] = drumPoint(g, [g.camera ? 0 : x, g.camera ? 0 : y], angle)
+  const [px, py, pz] = g.camera ? [cx + x, cy + y, cz] : [cx, cy, cz]
+  if (pz >= g.perspective - 1) return undefined
+  const factor = g.perspective / (g.perspective - pz)
+  return [px! * factor, py! * factor]
+}
 
 /** A sphere's silhouette is a circle at any rotation, so it needs no sampling and stays right under a second axis. */
 export function projectSphere(g: HelixGeometry): ProjectedBounds {
@@ -93,7 +136,8 @@ const SPHERE_COVERAGE = .3
 function derivedRadius(request: ShapeFitRequest, count: number, { width, height, gap }: { width: number; height: number; gap: number }): number {
   if (request.sphere) return Math.sqrt(count * (width + gap) * (height + gap) / (4 * Math.PI * SPHERE_COVERAGE))
   const spacing = Math.min(60, Math.max(.5, request.arc / count / 2))
-  return (width + gap) / (2 * Math.tan(spacing * RAD))
+  // A drum's cards stack along their height; a helix's along their width.
+  return ((request.drum ? height : width) + gap) / (2 * Math.tan(spacing * RAD))
 }
 
 function helixGeometry(request: ShapeFitRequest, nodes: readonly Element[]): HelixGeometry | undefined {
@@ -113,6 +157,36 @@ function helixGeometry(request: ShapeFitRequest, nodes: readonly Element[]): Hel
   return Object.values(geometry).some(value => typeof value === 'number' && !Number.isFinite(value)) ? undefined : geometry
 }
 
+function projectorOf(request: ShapeFitRequest): (g: HelixGeometry) => ProjectedBounds {
+  if (request.sphere) return projectSphere
+  return request.drum ? projectDrum : projectHelix
+}
+
+function shapeName(request: ShapeFitRequest): string {
+  if (request.sphere) return 'sphere'
+  return request.drum ? 'drum' : 'helix'
+}
+
+/**
+ * The room a shape is scaled into, or `null` when it is left alone.
+ *
+ * A helix or sphere under a clipping ancestor is a composition the author cut on purpose, so it keeps
+ * its size and its CSS fallback height. A drum still reserves its height there: it overflows up and
+ * down, onto the page's own content, and a sideways clip on a wrapper says nothing about that. An
+ * axis that is clipped is simply not fitted (unbounded room on it).
+ */
+function fitRoom(request: ShapeFitRequest, el: Element, horizontal: { left: number; right: number } | null,
+  height: number | null): { left: number; right: number; height: number } | null {
+  if (!request.drum && (!horizontal || height === null)) return null
+  const box = el.getBoundingClientRect()
+  const centre = box.left + box.width / 2
+  return {
+    left: horizontal ? centre - horizontal.left - 1 : Infinity,
+    right: horizontal ? horizontal.right - centre - 1 : Infinity,
+    height: height === null ? Infinity : height - 2,
+  }
+}
+
 /** Observe geometry only; the moving deck never asks this solver for a frame. */
 export function createHelixFit(request: ShapeFitRequest) {
   const { el, ctx, styles } = request
@@ -124,7 +198,7 @@ export function createHelixFit(request: ShapeFitRequest) {
       styles.set('--kui-item-height', `${geometry.height}px`)
       if (request.sphere) styles.set('--kui-sphere-radius', `${geometry.radius}px`)
     }
-    if (!request.sphere) styles.set('--kui-helix-centre', String(helixCentre(nodes.length)))
+    if (!request.sphere && !request.drum) styles.set('--kui-helix-centre', String(helixCentre(nodes.length)))
   }
   const solve = (): void => {
     const horizontal = fitBounds(el, ctx.win)
@@ -133,13 +207,12 @@ export function createHelixFit(request: ShapeFitRequest) {
     publish(geometry)
     styles.set('--kui-shape-fit', '1')
     styles.set('--kui-shape-height', '')
-    if (!horizontal || height === null || !geometry) return
-    const bounds = request.sphere ? projectSphere(geometry) : projectHelix(geometry)
-    const box = el.getBoundingClientRect()
-    const centre = box.left + box.width / 2
-    const scale = fitProjectedBounds(bounds, { left: centre - horizontal.left - 1, right: horizontal.right - centre - 1, height: height - 2 })
+    const room = fitRoom(request, el, horizontal, height)
+    if (!room || !geometry) return
+    const bounds = projectorOf(request)(geometry)
+    const scale = fitProjectedBounds(bounds, room)
     if (scale === 0) {
-      if (!warned) ctx.warn(`${request.sphere ? 'sphere' : 'helix'} reaches the camera plane; increase perspective or reduce radius and rise.`)
+      if (!warned) ctx.warn(`${shapeName(request)} reaches the camera plane; increase perspective or reduce radius and rise.`)
       warned = true
       return
     }

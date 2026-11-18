@@ -324,10 +324,15 @@ button, a.btn { font-family: inherit; cursor: pointer; }
    have been: 96px, clearing the header by 32px — the same generous margin over "just clears it"
    that `index.html`'s own mobile hero was tuned to. The preferred and max terms are kept so very
    wide screens still open up a little. Change this and the margin above together. */
+/* The pull-up overshoots the header by 0.5rem on purpose: the header measured 58px against the
+   3.4rem (54.4px) this assumed, which left a 4px strip of page background above every hero — only
+   visible on a dark hero (showcase.html), but there on all of them. Overshooting is harmless (the
+   hero's own background is what slides under the viewport edge) and the padding takes the same
+   0.5rem back, so the copy sits exactly where it did. */
 .demo-hero {
-  margin-top: calc(-1 * (1rem + 3.4rem));
+  margin-top: calc(-1 * (1rem + 3.4rem + 0.5rem));
   min-height: 100dvh;
-  padding-top: clamp(6rem, 5vw + 1.5rem, 6.5rem);
+  padding-top: calc(clamp(6rem, 5vw + 1.5rem, 6.5rem) + 0.5rem);
 }
 
 /* ---------- buttons ---------- */

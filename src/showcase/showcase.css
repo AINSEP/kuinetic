@@ -389,35 +389,35 @@
   }
 
   /* slideshow */
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) {
     position: relative;
     overflow: hidden;
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] {
     display: grid;
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state] {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state] {
     grid-area: 1 / 1;
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--kui-slideshow-duration, 500ms) var(--kui-slideshow-ease, ease);
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state='active'] {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='fade'] [data-kui-slideshow-list] > [data-kui-step-state='active'] {
     opacity: 1;
     transition-delay: var(--kui-slideshow-enter-delay, 0ms);
     pointer-events: auto;
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list] {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list] {
     display: flex;
     translate: calc(var(--kui-step, 0) * -100%) 0;
     transition: translate var(--kui-slideshow-duration, 500ms) var(--kui-slideshow-ease, ease);
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'])[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list] > [data-kui-step-state] {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='slide'] [data-kui-slideshow-list] > [data-kui-step-state] {
     flex: 0 0 100%;
     min-inline-size: 0;
   }
@@ -434,7 +434,112 @@
     touch-action: pan-y;
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls {
+  [data-kui-fx~='carousel-warp'] [data-kui-slideshow-list] {
+    touch-action: pan-y;
+  }
+
+  /* warp: the jump to hyperspace. Slides stack like fade; only the slide that just left and the one
+     that just arrived are visible. The JS stamps those two (`data-kui-slideshow-leaving` /
+     `-arriving`); nothing is stamped on first render, so a page never opens mid-jump. */
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] {
+    display: grid;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-step-state] {
+    grid-area: 1 / 1;
+    position: relative;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-step-state='active'],
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-leaving] {
+    visibility: visible;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-step-state='active'] {
+    z-index: 2;
+    pointer-events: auto;
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-leaving] {
+    z-index: 1;
+  }
+
+  /* The old picture flies past the camera in the first half of the jump. */
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-leaving] > * {
+    animation: kui-warp-depart var(--kui-slideshow-duration, 1200ms) var(--kui-slideshow-ease, ease) both;
+  }
+
+  /* The new one waits while the streaks peak, then rushes in from the vanishing point. */
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-arriving] > * {
+    animation: kui-warp-arrive var(--kui-slideshow-duration, 1200ms) var(--kui-slideshow-ease, ease) both;
+  }
+
+  /* Star streaks: three repeating conic layers on uneven periods so the rays never look regular,
+     masked to a ring, scaled outward about the vanishing point. Scale and opacity only. */
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-arriving]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      repeating-conic-gradient(from 3deg at var(--kui-warp-origin, 50% 50%),
+        color-mix(in srgb, var(--kui-warp-color, var(--kui-ambient-c1, #ffffff)) 85%, transparent) 0 0.3deg,
+        transparent 0.45deg 7deg),
+      repeating-conic-gradient(from 1deg at var(--kui-warp-origin, 50% 50%),
+        color-mix(in srgb, var(--kui-warp-color, var(--kui-ambient-c1, #ffffff)) 55%, transparent) 0 0.2deg,
+        transparent 0.3deg 4.6deg),
+      repeating-conic-gradient(from 5deg at var(--kui-warp-origin, 50% 50%),
+        color-mix(in srgb, var(--kui-warp-color, var(--kui-ambient-c1, #ffffff)) 35%, transparent) 0 0.5deg,
+        transparent 0.65deg 11.3deg);
+    -webkit-mask-image: radial-gradient(circle at var(--kui-warp-origin, 50% 50%), transparent 0 10%, #000 34%, #000 62%, transparent 92%);
+    mask-image: radial-gradient(circle at var(--kui-warp-origin, 50% 50%), transparent 0 10%, #000 34%, #000 62%, transparent 92%);
+    transform-origin: var(--kui-warp-origin, 50% 50%);
+    animation: kui-warp-streaks var(--kui-slideshow-duration, 1200ms) var(--kui-slideshow-ease, ease) both;
+  }
+
+  @keyframes kui-warp-depart {
+    0% { opacity: 1; scale: 1; }
+    45%, 100% { opacity: 0; scale: 2.2; }
+  }
+
+  @keyframes kui-warp-arrive {
+    0%, 30% { opacity: 0; scale: 0.08; }
+    100% { opacity: 1; scale: 1; }
+  }
+
+  @keyframes kui-warp-streaks {
+    0% { opacity: 0; scale: 0.35; }
+    25% { opacity: 1; }
+    60% { opacity: 0.85; scale: 1.6; }
+    100% { opacity: 0; scale: 2.6; }
+  }
+
+  @keyframes kui-warp-settle {
+    from { opacity: 0; }
+  }
+
+  /* Reduced motion: no streaks, no scale. The arrival is a short fade; the old slide hides at once. */
+  @media (prefers-reduced-motion: reduce) {
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-leaving] {
+      visibility: hidden;
+    }
+
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-leaving] > * {
+      animation: none;
+    }
+
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-arriving] > * {
+      animation: kui-warp-settle 200ms ease both;
+    }
+
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-arriving]::after {
+      content: none;
+    }
+  }
+
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls {
     position: relative;
     z-index: 1;
     display: flex;
@@ -444,7 +549,7 @@
     padding: 0.75rem;
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls button {
     display: inline-grid;
     place-items: center;
     min-inline-size: 2.75rem;
@@ -456,12 +561,12 @@
     cursor: pointer;
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Previous slide']::before { content: '←'; }
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Next slide']::before { content: '→'; }
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Pause slideshow']::before { content: 'Ⅱ'; }
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button[aria-label='Play slideshow']::before { content: '▶'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls button[aria-label='Previous slide']::before { content: '←'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls button[aria-label='Next slide']::before { content: '→'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls button[aria-label='Pause slideshow']::before { content: 'Ⅱ'; }
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls button[aria-label='Play slideshow']::before { content: '▶'; }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls .kui-slideshow-dot {
     min-inline-size: 1rem;
     min-block-size: 1rem;
     padding: 0;
@@ -469,11 +574,11 @@
     background: transparent;
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] {
     background: currentColor;
   }
 
-  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button:focus-visible {
+  :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls button:focus-visible {
     outline: 2px solid Highlight;
     outline-offset: 2px;
   }
@@ -599,12 +704,16 @@
 
   /* §12a: the bezel is structural (border, remapped by the UA); the dots/notch are decoration. */
   @media (forced-colors: active) {
-    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls button {
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp'])[data-kui-slideshow-mode='warp'] [data-kui-slideshow-list] > [data-kui-slideshow-arriving]::after {
+      content: none;
+    }
+
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls button {
       border-color: CanvasText;
       color: CanvasText;
     }
 
-    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow']) .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] {
+    :is([data-kui-fx~='carousel-fade'], [data-kui-fx~='carousel-slide'], [data-kui-fx~='video-hero-slideshow'], [data-kui-fx~='carousel-warp']) .kui-slideshow-controls .kui-slideshow-dot[aria-current='true'] {
       background: Highlight;
     }
 

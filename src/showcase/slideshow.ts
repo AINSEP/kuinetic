@@ -7,7 +7,7 @@ import type { AttributeLedger } from '../core/owned-styles.js'
 import { queryScoped, resolveTarget, scopeParam, SCOPE_PARAM } from '../core/target.js'
 import { attributeChannel, SUBTREE_CHANNEL } from '../core/types.js'
 import type { Cleanup, EffectParams, ParameterSchema, Preset, Primitive } from '../core/types.js'
-import { HOVER_PARAM } from '../effects/auto-motion.js'
+import { createHostPlayhead, HOVER_PARAM } from '../effects/auto-motion.js'
 import { createStepIndex } from '../effects/step-index.js'
 import type { StepIndex } from '../effects/step-index.js'
 import { withTimingContract } from '../effects/shared.js'
@@ -15,6 +15,8 @@ import { widgetPrimitive } from './shared.js'
 
 const SLIDE_LIST_ATTR = 'data-kui-slideshow-list'
 const SLIDE_MODE_ATTR = 'data-kui-slideshow-mode'
+const LEAVING_ATTR = 'data-kui-slideshow-leaving'
+const ARRIVING_ATTR = 'data-kui-slideshow-arriving'
 const controlsValues = ['auto', 'dots', 'arrows', 'none'] as const
 
 const slideshowParams: ParameterSchema = {
@@ -26,7 +28,7 @@ const slideshowParams: ParameterSchema = {
   controls: { type: 'keyword', default: 'auto', cssProperty: '--kui-slideshow-controls', keywords: [...controlsValues] },
   autoplay: { type: 'time', default: '0s', cssProperty: '--kui-slideshow-autoplay' },
   hover: HOVER_PARAM,
-  transition: { type: 'keyword', default: 'fade', cssProperty: '--kui-slideshow-transition', keywords: ['fade', 'slide'] },
+  transition: { type: 'keyword', default: 'fade', cssProperty: '--kui-slideshow-transition', keywords: ['fade', 'slide', 'warp'] },
   swipe: { type: 'keyword', default: 'true', cssProperty: '--kui-slideshow-swipe', keywords: ['true', 'false'] },
   mute: { type: 'text', default: '', cssProperty: '--kui-slideshow-mute' },
   duration: { type: 'time', default: '500ms', cssProperty: '--kui-slideshow-duration' },
@@ -140,6 +142,30 @@ function renderSlides(
   })
 }
 
+/**
+ * Mark the slide that just left and the one that just arrived, so a transition can tell them apart
+ * from every other inactive slide (`data-kui-step-state` says `before`/`after` for all of them).
+ * Nothing is marked on the first render or on a refresh that does not move: a page should not open
+ * with a slide flying away.
+ * @complexity O(n) time in slide count; O(1) extra space.
+ * @overallScore 100
+ */
+function markPassage(ledgers: ReturnType<typeof createAttributeLedger>[], from: number | null, to: number): void {
+  if (from === null || from === to) return
+  ledgers.forEach((attrs, position) => {
+    if (position === to) {
+      attrs.set(ARRIVING_ATTR, '')
+      attrs.remove(LEAVING_ATTR)
+    } else if (position === from) {
+      attrs.set(LEAVING_ATTR, '')
+      attrs.remove(ARRIVING_ATTR)
+    } else {
+      attrs.remove(LEAVING_ATTR)
+      attrs.remove(ARRIVING_ATTR)
+    }
+  })
+}
+
 function bindNavigation(controls: Controls, index: StepIndex): () => void {
   const previous = (): void => index.prev()
   const next = (): void => index.next()
@@ -238,10 +264,14 @@ function bindAutoplay(options: AutoplayOptions): () => void {
   let hovered = false
   let focused = false
   let timer: ReturnType<typeof setTimeout> | null = null
+  // The pause button is the host's one pause control, so it also holds the host's other
+  // clock-driven effects (a `starfield` composed beside the slideshow). See `createHostPlayhead`.
+  const holdHost = createHostPlayhead(ctx)
   const active = (): boolean => !userPaused && !hovered && !focused && !ctx.doc.hidden
   const update = (): void => {
     if (timer !== null) clearTimeout(timer)
     timer = null
+    holdHost(userPaused)
     listAttrs.set('aria-live', active() ? 'off' : 'polite')
     pauseAttrs.set('aria-pressed', String(userPaused))
     pauseAttrs.set('aria-label', userPaused ? 'Play slideshow' : 'Pause slideshow')
@@ -326,10 +356,13 @@ function prepareSlideshow(el: Element, params: EffectParams, ctx: PrepareContext
   const controls = buildControls(el, slides, mode, interval > 0)
   applyTiming(params, ctx)
   let renderMute = (): void => {}
+  let shown: number | null = null
   const index = createStepIndex({
     el, params, ctx, resolveSteps, name: 'slideshow', clickFallback: false,
     onRender: (position) => {
       renderSlides(slides, decorations.slides, controls, position)
+      markPassage(decorations.slides, shown, position)
+      shown = position
       renderMute()
     },
   })
@@ -378,5 +411,6 @@ export const SLIDESHOW_PRIMITIVE: Primitive = widgetPrimitive(
 export const SLIDESHOW_PRESETS: Preset[] = [
   { name: 'carousel-fade', primitive: 'slideshow', params: { transition: 'fade' }, requiresOwnSubtree: true, cloak: true },
   { name: 'carousel-slide', primitive: 'slideshow', params: { transition: 'slide' }, requiresOwnSubtree: true, cloak: true },
+  { name: 'carousel-warp', primitive: 'slideshow', params: { transition: 'warp', duration: '1200ms', ease: 'cubic-bezier(0.7, 0, 0.2, 1)' }, requiresOwnSubtree: true, cloak: true },
   { name: 'video-hero-slideshow', primitive: 'slideshow', params: { transition: 'fade', autoplay: '7s', controls: 'dots' }, requiresOwnSubtree: true, cloak: true },
 ]

@@ -1416,6 +1416,103 @@
 
   .note { margin-top: 1rem; color: var(--muted); font-size: 0.9rem; line-height: 1.6; max-width: 60ch; }
   .note code { font-size: 0.85em; padding: 0.15em 0.4em; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--fg); }
+
+  /* ---------- scroll-progress-bar, scoped ----------
+     The bar's own trip through the viewport is its timeline, so it fills while this card is on
+     screen rather than across 32,000px of page. */
+  .scoped-bar { height: 6px; background: var(--accent); flex: none; }
+
+  /* ---------- scroll-progress ----------
+     This effect paints nothing: it publishes --kui-progress and the page decides what that means.
+     Here it is how far each picture has wiped in. */
+  .progress-room { margin-top: 2rem; height: 240vh; }
+  .progress-stage {
+    position: sticky; top: var(--kui-pin-offset, 88px);
+    display: grid; gap: 1rem;
+  }
+  .progress-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .progress-wipe { margin: 0; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  .progress-wipe img {
+    display: block; width: 100%; height: min(58vh, 62vw); object-fit: cover;
+    clip-path: inset(0 calc((1 - var(--kui-progress, 0)) * 100%) 0 0);
+  }
+  .progress-page { height: 6px; border-radius: 3px; overflow: clip; background: var(--border); }
+  .progress-page > span {
+    display: block; height: 100%; background: var(--accent); transform-origin: left center;
+    scale: var(--kui-progress, 0) 1;
+  }
+
+  /* ---------- step-progress ---------- */
+  .step-tiles { margin-top: 1rem; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+  .step-tiles > img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+  .motion-pause {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.5rem 0.95rem; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 0.8rem; font-weight: 600;
+    background: transparent; color: var(--fg); border: 1px solid var(--border);
+  }
+  .motion-pause:hover { border-color: var(--fg); }
+  .motion-pause[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .step-tiles + .motion-pause { margin-top: 1rem; }
+
+  /* ---------- scroll-story ---------- */
+  .story-pair { margin-top: 2rem; }
+  .story-pair > :first-child > img { border-radius: 14px; }
+  .story-pair > :last-child > li { display: flex; align-items: center; }
+  .story-pair h3 { font-size: clamp(1.6rem, 1.1rem + 2vw, 2.75rem); line-height: 1.05; letter-spacing: -0.02em; }
+  /* On a phone the shipped steps ride over the picture band at 45% opacity and wash it out, and
+     their Canvas fill is not this page's black in dark mode. The band goes on top, so the steps
+     scroll beneath it, which is what the catalog says they do. */
+  @media (max-width: 47.99rem) {
+    .story-pair > :first-child { z-index: 3; }
+    .story-pair > :last-child > li { background: var(--bg); }
+  }
+
+  /* ---------- video-scrub ---------- */
+  .video-scrub-demo {
+    display: block; width: 100%; aspect-ratio: 4 / 3; max-height: 80vh; margin-top: 2rem;
+    object-fit: cover; border-radius: 14px;
+  }
+
+  /* ---------- header-shrink + back-to-top-fade, in a small page of their own ----------
+     Both read the scroll top of their nearest scroller. Past the first screen of this page the
+     window's scroll top has long since passed any threshold, so the real site header could only
+     ever show the end state. This box is a scroller, so it starts at zero for them. */
+  .mini-page {
+    position: relative; margin-top: 1rem; height: 460px; overflow-y: auto; overflow-anchor: none;
+    border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+  }
+  .mini-page:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mini-head {
+    position: sticky; top: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    padding-inline: 1.25rem; background: var(--bg); border-bottom: 1px solid var(--border);
+  }
+  .mini-head strong { font-size: 1.5em; letter-spacing: -0.02em; }
+  .mini-head span { color: var(--muted); }
+  .mini-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; padding: 0.75rem; }
+  .mini-body img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; }
+  .mini-top {
+    position: sticky; bottom: 1rem; z-index: 2; display: block;
+    margin: 0 1rem 1rem auto; padding: 0.5rem 0.95rem; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 0.8rem; font-weight: 600;
+    background: var(--accent-ink); color: var(--accent); border: 0;
+  }
+
+  /* ---------- video-hero, video-backdrop, background ----------
+     The library owns the layers. All the page gives them is a box, and text to sit on top. */
+  .media-box {
+    margin-top: 1rem; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 1rem;
+    padding: clamp(1.25rem, 3vw, 2.5rem); border-radius: 14px; overflow: clip; color: #fff;
+  }
+  .media-box h3 { font-size: clamp(1.6rem, 1.1rem + 2vw, 2.75rem); line-height: 1.05; letter-spacing: -0.02em; max-width: 16ch; }
+  .media-hero { min-height: min(78vh, 640px); }
+  .media-card { min-height: 380px; }
+  .media-grid { margin-top: 2.5rem; display: grid; grid-template-columns: 1fr; gap: 2.5rem 2rem; }
+  @media (min-width: 760px) { .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .media-grid > div { min-width: 0; }
+  .media-box .motion-pause { color: #fff; border-color: rgb(255 255 255 / 0.6); }
+  .media-box .motion-pause[aria-pressed='true'] { background: #fff; color: #000; border-color: #fff; }
 </style>
 </head>
 <body>
@@ -1636,7 +1733,7 @@
               <!-- Four entrances cycle through the list, so it samples the catalog again — safe this
                    time because a keyframe lands on the resting state, unlike parallax's ±travel that
                    never settles. Reversal comes from data-kui-timeline, not the effect. -->
-              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">13 names in catalog section B, 12 of them shipped. Seven are demonstrated below.</li>
+              <li data-kui="fade-up" data-kui-timeline="view entry 0% cover 35%">13 names in catalog section B, 12 of them shipped. All 12 are on this page.</li>
               <li data-kui="fade-left" data-kui-timeline="view entry 0% cover 35%"><strong>One is not shipped yet</strong> — <code>reveal-direction-aware</code> has to know which way the page is travelling, and no CSS timeline exposes that.</li>
               <li data-kui="zoom-in" data-kui-timeline="view entry 0% cover 35%"><strong><code>reveal-repeat</code> was dropped</strong> — byte-identical to <code>reveal-once</code> once the binder stopped re-observing after first entry. It is gone from the catalog, not pending.</li>
               <li data-kui="bounce-in-up" data-kui-timeline="view entry 0% cover 35%"><strong>Scroll effects are progress-linked</strong>, not event-fired — so they run backwards when you scroll back up.</li>
@@ -1812,13 +1909,28 @@
           </div>
         </div>
 
+        <div class="matrix-group">
+          <p class="matrix-group-label">Colour &amp; progress bar</p>
+          <div class="demo-grid">
+            <figure class="demo-card" style="--ar: 4 / 5" data-show-code>
+              <img src="./assets/modeling/chartreuse-gold-portrait.jpg" alt="A portrait in chartreuse and gold, draining from grey to full colour as it crosses the screen" loading="lazy" data-kui="scroll-desaturate timeline:view" />
+              <figcaption>scroll-desaturate — timeline:view</figcaption>
+            </figure>
+            <figure class="demo-card" style="--ar: 4 / 5" data-show-code>
+              <div class="scoped-bar" data-kui="scroll-progress-bar timeline:view" aria-hidden="true"></div>
+              <img src="./assets/modeling/lilac-turban.jpg" alt="A portrait in a lilac turban, under a bar that fills as the card crosses the screen" loading="lazy" />
+              <figcaption>scroll-progress-bar — timeline:view</figcaption>
+            </figure>
+          </div>
+        </div>
+
         </section>
 
       <!-- SECTION C: SCROLL MECHANICS -->
       <section data-od-id="scroll-mechanics">
         <div class="section-head">
           <h2 data-kui="fade-up on:enter">Scroll mechanics</h2>
-          <p>Catalog section C — 11 named effects, all real primitives through the shared JS orchestrator.</p>
+          <p>Catalog section C — 12 named effects, all real primitives through the shared JS orchestrator.</p>
         </div>
 
         <div class="matrix-group">
@@ -2027,6 +2139,53 @@
               </figure>
             </div>
           </div>
+
+          <p class="kui-contract" style="margin-top: 3rem"><code>data-kui="scroll-story"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="scroll-story-demo">Show code</button></p>
+          <div class="story-pair" id="scroll-story-demo" data-kui="scroll-story" aria-label="Four products, one at a time">
+            <div>
+              <img src="./assets/product/nike_shoe.jpg" alt="A Nike running shoe" loading="lazy" />
+              <img src="./assets/product/red_headphones.jpg" alt="Red headphones" loading="lazy" />
+              <img src="./assets/product/luxury_watch.jpg" alt="A luxury wristwatch" loading="lazy" />
+              <img src="./assets/product/perfume_bottle.jpg" alt="A perfume bottle" loading="lazy" />
+            </div>
+            <ol>
+              <li><h3>The shoe.</h3></li>
+              <li><h3>The headphones.</h3></li>
+              <li><h3>The watch.</h3></li>
+              <li><h3>The bottle.</h3></li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Progress &amp; steps</p>
+          <p class="kui-contract"><code>data-kui="scroll-progress distance:140vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="progress-demo">Show code</button></p>
+          <p class="kui-contract"><code>data-kui="scroll-progress smooth:true distance:140vh"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="progress-demo">Show code</button></p>
+          <p class="kui-contract"><code>data-kui="scroll-progress smooth:true page:true"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="progress-demo">Show code</button></p>
+          <div class="progress-room" id="progress-demo">
+            <div class="progress-stage">
+              <div class="progress-pair">
+                <figure class="progress-wipe" data-kui="scroll-progress distance:140vh">
+                  <img src="./assets/orange_visor.jpg" alt="A portrait in an orange visor, wiping in from the left" loading="lazy" />
+                  <figcaption>scroll-progress</figcaption>
+                </figure>
+                <figure class="progress-wipe" data-kui="scroll-progress smooth:true distance:140vh">
+                  <img src="./assets/yellow_mc.jpg" alt="A portrait in yellow, wiping in from the left a beat behind" loading="lazy" />
+                  <figcaption>scroll-progress smooth:true</figcaption>
+                </figure>
+              </div>
+              <div class="progress-page" data-kui="scroll-progress smooth:true page:true" aria-hidden="true"><span></span></div>
+            </div>
+          </div>
+
+          <p class="kui-contract" style="margin-top: 3rem"><code>data-kui="step-progress steps:4 autoplay:2s hover:none pause:.step-pause"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="step-demo">Show code</button></p>
+          <div class="step-tiles" id="step-demo" data-kui="step-progress steps:4 autoplay:2s hover:none pause:.step-pause">
+            <img src="./assets/modeling/gold-cube-earrings.jpg" alt="Gold cube earrings on a model" loading="lazy" />
+            <img src="./assets/modeling/cobalt-profile.jpg" alt="A cobalt profile portrait" loading="lazy" />
+            <img src="./assets/modeling/pink-ruffle-crown.jpg" alt="A pink ruffle crown" loading="lazy" />
+            <img src="./assets/modeling/motion_blur_model.jpg" alt="A model in motion blur" loading="lazy" />
+          </div>
+          <button type="button" class="motion-pause step-pause">Pause</button>
         </div>
 
         <div class="matrix-group">
@@ -2136,6 +2295,16 @@
           </div>
         </div>
 
+        <!-- A group of its own, not more of the one above: a sticky element clamps to its container,
+             so the sequence-scrub would ride down over anything placed after it in that group. -->
+        <div class="matrix-group">
+          <p class="matrix-group-label">Video scrub</p>
+          <p class="kui-contract"><code>data-kui="video-scrub spacer:true frames:120 distance:200vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="video-scrub-demo">Show code</button></p>
+          <video class="video-scrub-demo" id="video-scrub-demo" poster="./assets/cartoon/clip-dino.jpg" muted playsinline preload="auto" aria-label="A green dinosaur walking, one step for each bit of scroll" data-kui="video-scrub spacer:true frames:120 distance:200vh offset-top:calc(var(--kui-pin-offset, 0px) + 2vh)">
+            <source src="./assets/cartoon/clip-dino.mp4" type="video/mp4" />
+          </video>
+        </div>
+
         <div class="matrix-group">
           <p class="matrix-group-label">Navigation</p>
                     <div class="rev-notes">
@@ -2183,6 +2352,23 @@
                 <div class="spy-label"><p class="kicker">Product</p><h4>Beats Pro</h4></div>
               </section>
             </div>
+          </div>
+
+          <p class="kui-contract" style="margin-top: 3rem"><code>data-kui="header-shrink offset:120"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="mini-page-demo">Show code</button></p>
+          <p class="kui-contract"><code>data-kui="back-to-top-fade offset:200"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="mini-page-demo">Show code</button></p>
+          <div class="mini-page" id="mini-page-demo" tabindex="0" aria-label="A small page that scrolls by itself">
+            <div class="mini-head" data-kui="header-shrink offset:120"><strong>Studio</strong><span>Scroll this box</span></div>
+            <div class="mini-body">
+              <img src="./assets/cartoon/cartoon-09.jpg" alt="A wolf head sticker" loading="lazy" />
+              <img src="./assets/cartoon/cartoon-10.jpg" alt="A character sheet for Munchies" loading="lazy" />
+              <img src="./assets/cartoon/cartoon-11.jpg" alt="Retro gadget characters" loading="lazy" />
+              <img src="./assets/cartoon/cartoon-12.jpg" alt="A grid of small characters" loading="lazy" />
+              <img src="./assets/cartoon/cartoon-13.jpg" alt="An orange-haired head" loading="lazy" />
+              <img src="./assets/cartoon/cartoon-14.jpg" alt="A walking figure in a teal jersey" loading="lazy" />
+              <img src="./assets/cartoon/cartoon-15.jpg" alt="A portrait in a pink cap" loading="lazy" />
+              <img src="./assets/cartoon/cartoon-06.jpg" alt="A sandwich mascot" loading="lazy" />
+            </div>
+            <button type="button" class="mini-top" data-kui="back-to-top-fade offset:200">Back to top ↑</button>
           </div>
         </div>
 
@@ -2278,6 +2464,38 @@
           </div>
         </div>
 
+      </section>
+
+      <!-- SECTION G: VIDEO AND BACKGROUNDS -->
+      <section id="video-backgrounds" data-od-id="video-backgrounds">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Video &amp; backgrounds</h2>
+          <p>Catalog section G — a clip or a picture behind your own content.</p>
+        </div>
+
+        <div class="matrix-group">
+          <p class="kui-contract"><code>data-kui="video-hero src:./assets/webdesign/midjourney-showcase.mp4 poster:./assets/webdesign/midjourney-showcase-poster.jpg"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="video-hero-demo">Show code</button></p>
+          <div class="media-box media-hero" id="video-hero-demo" data-kui="video-hero src:./assets/webdesign/midjourney-showcase.mp4 poster:./assets/webdesign/midjourney-showcase-poster.jpg">
+            <h3 data-kui="text-reveal-up 700ms on:enter">Plays from the first screen.</h3>
+            <button type="button" class="motion-pause" data-video-pause>Pause</button>
+          </div>
+
+          <div class="media-grid">
+            <div>
+              <p class="kui-contract"><code>data-kui="video-backdrop src:./assets/webdesign/kling-animate-anything.mp4 poster:./assets/webdesign/kling-animate-anything-poster.jpg"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="video-backdrop-demo">Show code</button></p>
+              <div class="media-box media-card" id="video-backdrop-demo" data-kui="video-backdrop src:./assets/webdesign/kling-animate-anything.mp4 poster:./assets/webdesign/kling-animate-anything-poster.jpg">
+                <h3>Plays while you can see it.</h3>
+                <button type="button" class="motion-pause" data-video-pause>Pause</button>
+              </div>
+            </div>
+            <div>
+              <p class="kui-contract"><code>data-kui="background src:./assets/product/perfume_bottle.jpg overlay:black overlay-opacity:45%"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="background-demo">Show code</button></p>
+              <div class="media-box media-card" id="background-demo" data-kui="background src:./assets/product/perfume_bottle.jpg overlay:black overlay-opacity:45%">
+                <h3>Or just a picture.</h3>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
     </div>
@@ -2459,6 +2677,38 @@
         { threshold: 0.25 },
       )
       for (var i = 0; i < vids.length; i++) io.observe(vids[i])
+    })()
+  </script>
+  <script>
+    // Two small controls the effects have no parameter for. A background clip is built by the
+    // library, so it is looked up at click time. Media events do not bubble, hence the capture.
+    ;(function () {
+      document.querySelectorAll('[data-video-pause]').forEach(function (button) {
+        var host = button.closest('[data-kui]')
+        function sync(event) {
+          var paused = event.type === 'pause'
+          button.textContent = paused ? 'Play' : 'Pause'
+          button.setAttribute('aria-pressed', String(paused))
+        }
+        host.addEventListener('play', sync, true)
+        host.addEventListener('pause', sync, true)
+        button.addEventListener('click', function () {
+          var video = host.querySelector('video')
+          if (!video) return
+          if (video.paused) {
+            var started = video.play()
+            if (started && started.catch) started.catch(function () {})
+          } else {
+            video.pause()
+          }
+        })
+      })
+
+      var page = document.getElementById('mini-page-demo')
+      page.querySelector('.mini-top').addEventListener('click', function () {
+        var calm = matchMedia('(prefers-reduced-motion: reduce)').matches
+        page.scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' })
+      })
     })()
   </script>
   <script src="./replay.js"></script>

@@ -25,7 +25,7 @@ export const INTERACTION_NOTES: ParamNotes = {
   'cursor-invert.snap': 'Follow the pointer or spring to the hovered target centre.',
   'cursor-invert.dot-class': 'Extra style classes on this follower, for size, paint or rich content.',
   'pop.press': 'Scale while pressed, including during hover; release returns to the hover or focus scale.',
-  'cursor-spotlight.gradient': 'A soft radial glow or fixed conic sectors at the pointer; --kui-spotlight-colors sets the conic stops.',
+  'cursor-spotlight.gradient': 'A soft radial glow, fixed conic sectors, or a flashlight that darkens the box except at the pointer; --kui-spotlight-colors sets the conic stops.',
   'anchored-preview.distance': 'How far the preview travels as it pops in.',
   'anchored-preview.gap': 'How much space is left between the preview and what it points at.',
   'anchored-preview.scale': 'How small the preview starts before it grows to full size.',

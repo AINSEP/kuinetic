@@ -406,6 +406,31 @@ export function createAutoMotion(request: AutoMotionRequest): AutoMotion {
   }
 }
 
+/**
+ * Make the author's pause control hold every other clock-driven effect on the same host.
+ *
+ * Effects composed on one element (`starfield, carousel-warp autoplay:6s`) each own a separate
+ * kind of motion, but a visitor sees one pause button and expects the whole element to stop
+ * (WCAG 2.2.2). Compiled CSS effects are gated by `animation-play-state` on the host, which is the
+ * property `control().pause()` writes, through the host's own style ledger (`ctx.style`, the same
+ * ledger object the CSS instances use). Writing it here, through that ledger, reaches every such
+ * effect on the host without this widget knowing which ones they are, and unwinds with them on
+ * teardown. It writes nothing until a pause is first pressed, so an unpaused widget leaves the
+ * other effects' own play state alone.
+ *
+ * @param ctx - The widget's prepare context; `ctx.style` is the host's ledger.
+ * @returns A setter: `true` holds the host's other effects, `false` lets them run again.
+ * @complexity O(1) time and space per call.
+ */
+export function createHostPlayhead(ctx: PrepareContext): (paused: boolean) => void {
+  let held = false
+  return (paused) => {
+    if (paused === held) return
+    held = paused
+    ctx.style.set('animation-play-state', paused ? 'paused' : 'running')
+  }
+}
+
 /*
  * Stepped motion: how long the deck rests on each slide before moving to the next. `0s` is off.
  *
@@ -540,8 +565,10 @@ export function createDeckMotion(request: DeckMotionRequest): DeckMotion {
   const pauseSelector = resolveTarget(params.text('pause'), ctx, `${label} pause`)
   const startPaused = carriedPauses.delete(el) && pauseSelector !== '' && queryControls(el, ctx, pauseSelector).length > 0
   let paused = startPaused
+  const holdHost = createHostPlayhead(ctx)
   const reflectPaused = (next: boolean): void => {
     paused = next
+    holdHost(next)
     if (!pauseSelector) return
     for (const node of queryControls(el, ctx, pauseSelector)) {
       let ledger = ledgers.get(node)

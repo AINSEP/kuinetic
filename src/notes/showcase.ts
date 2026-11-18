@@ -23,7 +23,7 @@ export const SHOWCASE_NOTES: ParamNotes = {
   'spatial-row.attribute': 'Host attribute whose value column moves the line into a bounded column.',
   'spatial-ring.timer': 'Publishes how far the current autoplay wait has elapsed, from zero to one, when true.',
   'spatial-stack.timer': 'Publishes how far the current autoplay wait has elapsed, from zero to one, when true.',
-  'slideshow.enter-delay': 'Extra wait before a fade arrives; match duration for out-then-in order. Slide mode does not use it.',
+  'slideshow.enter-delay': 'Extra wait before a fade arrives; match duration for out-then-in order. Slide and warp modes do not use it.',
   'compare.position': 'Where the divider starts between two images, as a share of the width.',
   'compare.positions': {
     why: 'Where each divider starts when comparing three or more images, as one quoted list.',
@@ -131,7 +131,7 @@ export const SHOWCASE_NOTES: ParamNotes = {
     why: 'Whether resting the mouse on the slideshow pauses autoplay. none keeps it moving.',
     whenOmitted: 'Hovering pauses it. Keyboard focus and the pause button always pause.',
   },
-  'slideshow.transition': 'Whether slides cross-fade or slide sideways.',
+  'slideshow.transition': 'Whether slides cross-fade, slide sideways, or warp through a burst of star streaks.',
   'slideshow.swipe': 'Whether a left or right swipe changes the slide.',
   'slideshow.mute': {
     why: 'Your own button, inside the slideshow, that mutes and unmutes the video on the current slide.',
@@ -193,6 +193,7 @@ export const SHOWCASE_NOTES: ParamNotes = {
   'spatial-ring.perspective': 'How close the camera is; smaller values make the 3D look more dramatic.',
   'spatial-ring.facing': 'Whether cards turn outward with the ring or always face you so text stays readable.',
   'spatial-ring.plane': 'Whether the ring turns toward you in depth, or lies flat like a clock face.',
+  'spatial-ring.axis': 'Whether the ring turns like a carousel (y), or like a drum with the next card waiting at the top (x).',
 
   'spatial-stack.grab': 'Whether people can drag the stack with a finger or mouse.',
   'spatial-stack.travel': 'How many pixels of dragging move the stack by one card.',

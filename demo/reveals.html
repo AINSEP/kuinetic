@@ -86,6 +86,43 @@
   }
   .demo-card[tabindex] { cursor: pointer; }
   .demo-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- switch buttons: the same pill as carousels.html ---------- */
+  .pill-row { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
+  .pill-row button {
+    padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--fg); font-size: 0.8rem; font-weight: 590;
+  }
+  .pill-row button:hover { border-color: var(--fg); }
+  .pill-row button.is-active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .pill-row button.motion-pause { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .pill-row button.motion-pause[aria-pressed='true'] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+  .motion-pause svg { width: 12px; height: 12px; fill: currentColor; }
+
+  /* One card, a row of pictures, one caption. The card's own `overflow: clip` is what an exit leaves through. */
+  .switch-card { margin: 1.5rem 0 0; }
+  .switch-pics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; padding: 0.5rem; }
+  @media (min-width: 720px) { .switch-pics { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+  /* A zoomed picture would paint over the caption below it, so the moving ones get a frame of their own. */
+  .pic-frame { overflow: clip; }
+  /* `image-parallax-frame` travels +/-distance: 96px of slack covers `distance:70px` with room spare. */
+  .parallax-frame { position: relative; aspect-ratio: 3 / 4; flex: none; }
+  .parallax-frame img { position: absolute; left: 0; top: -96px; height: calc(100% + 192px); aspect-ratio: auto; }
+
+  /* The panel carries no `display` of its own: an unlayered one here would beat the library's closed state. */
+  .open-stage { display: grid; place-items: center; height: clamp(250px, 40vw, 380px); overflow: clip; padding: 0.5rem; }
+  .open-panel { width: min(100%, 36rem); }
+  .open-pics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+
+  .scene-stage > .scene { display: none; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; padding: 0.5rem; }
+  .scene-stage[data-scene='one'] > .scene-one,
+  .scene-stage[data-scene='two'] > .scene-two,
+  .scene-stage[data-scene='three'] > .scene-three { display: grid; }
+
+  /* Offset 0: the image is meant to end up filling the screen, and the page header hides on scroll. */
+  .grow-pin { --kui-pin-offset: 0px; height: 100svh; width: 100vw; margin-top: 1.5rem; margin-inline: calc(50% - 50vw); overflow: clip; background: var(--accent-ink); }
+  .grow-pin img { display: block; width: 100%; height: 100%; object-fit: cover; transform-origin: center; }
 </style>
 </head>
 <body>
@@ -332,6 +369,186 @@
         </div>
       </section>
 
+      <!-- EXITS: one set of pictures, a button per exit. The script at the bottom brings them back. -->
+      <section id="exits" data-od-id="exits">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Exits</h2>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="exit-stage">Show code</button>
+        </div>
+        <div class="pill-row" role="group" aria-label="Play an exit">
+          <button type="button" class="is-active" data-exit="fade-out 1000ms target:.exit-pic on:load">fade-out</button>
+          <button type="button" data-exit="fade-out-up 1000ms distance:120px target:.exit-pic on:load">fade-out-up</button>
+          <button type="button" data-exit="fade-out-down 1000ms distance:120px target:.exit-pic on:load">fade-out-down</button>
+          <button type="button" data-exit="fade-out-left 1000ms distance:120px target:.exit-pic on:load">fade-out-left</button>
+          <button type="button" data-exit="fade-out-right 1000ms distance:120px target:.exit-pic on:load">fade-out-right</button>
+          <button type="button" data-exit="slide-out-up 1000ms distance:100vh target:.exit-pic on:load">slide-out-up</button>
+          <button type="button" data-exit="slide-out-down 1000ms distance:100vh target:.exit-pic on:load">slide-out-down</button>
+          <button type="button" data-exit="slide-out-left 1000ms distance:100vw target:.exit-pic on:load">slide-out-left</button>
+          <button type="button" data-exit="slide-out-right 1000ms distance:100vw target:.exit-pic on:load">slide-out-right</button>
+          <button type="button" data-exit="zoom-out 1000ms scale:0.05 target:.exit-pic on:load">zoom-out</button>
+          <button type="button" data-exit="pop-out 1000ms scale:0.05 target:.exit-pic on:load">pop-out</button>
+          <button type="button" data-exit="rotate-out 1000ms angle:-90deg target:.exit-pic, fade-out 1000ms target:.exit-pic on:load">rotate-out</button>
+          <button type="button" data-exit="roll-out 1000ms distance:240px target:.exit-pic on:load">roll-out</button>
+          <button type="button" data-exit="flip-out-x 1000ms target:.exit-pic on:load">flip-out-x</button>
+          <button type="button" data-exit="flip-out-y 1000ms target:.exit-pic on:load">flip-out-y</button>
+        </div>
+        <figure class="demo-card switch-card" id="exit-stage" data-kui="fade-out 1000ms target:.exit-pic on:manual">
+          <div class="switch-pics">
+            <img class="exit-pic" src="./assets/modeling/akira-pantsuit.jpg" alt="Seated model in a navy vest, red tie and huge navy trousers, tan heeled boots" loading="lazy" />
+            <img class="exit-pic" src="./assets/modeling/black-and-yellow.jpg" alt="Runway look in black with gold leaf embroidery and a gold belt" loading="lazy" />
+            <img class="exit-pic" src="./assets/modeling/stripe-suit.jpg" alt="White pinstripe suit with sharp shoulders, black tie and white gloves" loading="lazy" />
+            <img class="exit-pic" src="./assets/modeling/motion_blur_model.jpg" alt="Long-exposure blur of a figure, pale streaks falling through deep blue" loading="lazy" />
+          </div>
+          <figcaption><span id="exit-attr">data-kui="fade-out 1000ms target:.exit-pic on:load"</span></figcaption>
+        </figure>
+      </section>
+
+      <!-- IMAGE REVEALS -->
+      <section id="image-reveals" data-od-id="image-reveals">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Image reveals</h2>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Wipe — 4</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card" data-kui="wipe-up 1400ms target:img" data-show-code>
+              <img src="./assets/modeling/modeling_03.jpg" alt="Portrait lit entirely in gold, tinted round sunglasses and a black turtleneck" loading="lazy" />
+              <figcaption>data-kui="wipe-up 1400ms target:img"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="wipe-down 1400ms target:img" data-show-code>
+              <img src="./assets/modeling/modeling_04.jpg" alt="Red silk fabric swept across the eyes, bold red lips exposed below" loading="lazy" />
+              <figcaption>data-kui="wipe-down 1400ms target:img"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="wipe-left 1400ms target:img" data-show-code>
+              <img src="./assets/modeling/modeling_05.jpg" alt="Black-and-white profile portrait in a wide-brim red hat and red cloak" loading="lazy" />
+              <figcaption>data-kui="wipe-left 1400ms target:img"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="wipe-right 1400ms target:img" data-show-code>
+              <img src="./assets/modeling/modeling_06.jpg" alt="Black-and-white beauty close-up, hand at chin, statement drop earrings" loading="lazy" />
+              <figcaption>data-kui="wipe-right 1400ms target:img"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Mask, curtain, blur — 3</p>
+          <div class="demo-grid" data-kui="cascade:90ms">
+            <figure class="demo-card" data-kui="mask-reveal 1600ms target:img" data-show-code>
+              <img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Beauty portrait in an oversized pink ruffled headpiece against a magenta backdrop" loading="lazy" />
+              <figcaption>data-kui="mask-reveal 1600ms target:img"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="curtain-reveal 1400ms target:img" data-show-code>
+              <img src="./assets/modeling/green-monochrome.jpg" alt="A model in a green jumpsuit against a flat green backdrop, one knee raised, in pale pink platform shoes" loading="lazy" />
+              <figcaption>data-kui="curtain-reveal 1400ms target:img"</figcaption>
+            </figure>
+            <figure class="demo-card" data-kui="blur-up 1600ms target:img" data-show-code>
+              <div class="pic-frame"><img src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile portrait wearing stacked gold cube earrings against a warm neutral backdrop" loading="lazy" /></div>
+              <figcaption>data-kui="blur-up 1600ms target:img"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Ken Burns — 2</p>
+          <div class="pill-row">
+            <button type="button" class="motion-pause" id="ken-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause</span></button>
+          </div>
+          <div class="demo-grid">
+            <figure class="demo-card ken-card" data-kui="ken-burns 8000ms repeat:infinite yoyo:true scale:1.3 target:img" data-show-code>
+              <div class="pic-frame"><img src="./assets/modeling/modeling_14.jpg" alt="Beauty portrait with a yellow bob wig, yellow eyeshadow, and freckles against a yellow backdrop" loading="lazy" /></div>
+              <figcaption>data-kui="ken-burns 8000ms repeat:infinite yoyo:true scale:1.3 target:img"</figcaption>
+            </figure>
+            <figure class="demo-card ken-card" data-kui="ken-burns-out 8000ms repeat:infinite yoyo:true scale:1.3 target:img" data-show-code>
+              <div class="pic-frame"><img src="./assets/modeling/modeling_15.jpg" alt="Glossy red paint mask over the eyes, black lips, black gloves against red" loading="lazy" /></div>
+              <figcaption>data-kui="ken-burns-out 8000ms repeat:infinite yoyo:true scale:1.3 target:img"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Parallax frame — 1</p>
+          <div class="demo-grid">
+            <figure class="demo-card" data-kui="image-parallax-frame distance:70px timeline:view target:img" data-show-code>
+              <div class="pic-frame parallax-frame"><img src="./assets/modeling/modeling_13.jpg" alt="Side profile portrait in yellow duotone, checkered turtleneck sweater" loading="lazy" /></div>
+              <figcaption>data-kui="image-parallax-frame distance:70px timeline:view target:img"</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- IMAGE GROW -->
+      <section id="image-grow" data-od-id="image-grow">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Image grow</h2>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="grow-demo">Show code</button>
+        </div>
+        <div class="grow-pin" id="grow-demo" data-kui="pin-section distance:150vh">
+          <img src="./assets/product/mens_accessories_flatlay.jpg" alt="Flat lay of black brogues, a bow tie, cufflinks, a belt, sunglasses and a watch on white linen" data-kui="curtain-reveal start-size:60vmin timeline:pin ease:linear, parallax-scale from:0.35 scale:1 timeline:pin ease:linear" />
+        </div>
+      </section>
+
+      <!-- PIXEL CURTAIN -->
+      <section id="pixel-curtain" data-od-id="pixel-curtain">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Pixel curtain</h2>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="pixel-demo">Show code</button>
+        </div>
+        <div id="pixel-demo">
+          <div class="pill-row">
+            <button type="button" aria-controls="pixel-stage" data-kui='curtain attribute:data-scene value:next values:"one two three" cover:pixels reveal:pixels scope:true'>Next scene</button>
+          </div>
+          <figure class="demo-card switch-card">
+            <div class="scene-stage" id="pixel-stage" data-scene="one">
+              <div class="scene scene-one">
+                <img src="./assets/modeling/modeling_09.jpg" alt="Side-profile portrait in red-toned light, red headphones and a swept-up updo" />
+                <img src="./assets/modeling/yellow-paint-blue-bob.jpg" alt="Beauty portrait against a yellow backdrop, a blue bob and a yellow paint patch across one eye" />
+                <img src="./assets/modeling/lilac-turban.jpg" alt="Profile portrait in a sculpted lilac wrapped turban and matching fringed knit" />
+              </div>
+              <div class="scene scene-two">
+                <img src="./assets/modeling/modeling_16.jpg" alt="Portrait in an emerald blazer and afro, dramatic window-shadow lighting against green" />
+                <img src="./assets/modeling/cobalt-profile.jpg" alt="Sculptural profile lit in cobalt blue, wearing clear-framed glasses, on a lilac backdrop" />
+                <img src="./assets/modeling/modeling_12.jpg" alt="Bold black and yellow face paint with cat-eye glasses, red lips" />
+              </div>
+              <div class="scene scene-three">
+                <img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Monochrome teal portrait in a curved sculptural hat" />
+                <img src="./assets/modeling/modeling_20.jpg" alt="Close-up portrait rendered in glossy magenta, dramatic reflective lighting" />
+                <img src="./assets/modeling/modeling_21.jpg" alt="Side profile beauty portrait lit in magenta, glossy pink jacket and diamond earring" />
+              </div>
+            </div>
+            <figcaption>curtain cover:pixels reveal:pixels scope:true</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- OPEN AND CLOSE: these six animate an element leaving and entering display:none. -->
+      <section id="open-close" data-od-id="open-close">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Open and close</h2>
+          <button type="button" class="kui-show-code-toggle" data-show-code-target="open-card">Show code</button>
+        </div>
+        <div class="pill-row" role="group" aria-label="Close the panel, then open it with this effect">
+          <button type="button" class="is-active" data-open-switch="fade-open 600ms">fade-open</button>
+          <button type="button" data-open-switch="scale-open 600ms scale:0.6">scale-open</button>
+          <button type="button" data-open-switch="pop-open 600ms scale:0.7">pop-open</button>
+          <button type="button" data-open-switch="drop-open 600ms distance:60px">drop-open</button>
+          <button type="button" data-open-switch="slide-open-up 600ms distance:90px">slide-open-up</button>
+          <button type="button" data-open-switch="slide-open-down 600ms distance:90px">slide-open-down</button>
+        </div>
+        <figure class="demo-card switch-card" id="open-card">
+          <div class="open-stage">
+            <div class="open-panel" id="open-panel" data-kui="fade-open 600ms" data-open>
+              <div class="open-pics">
+                <img src="./assets/modeling/modeling_19.jpg" alt="Side profile portrait lit entirely in green, curly hair and bare shoulder" loading="lazy" />
+                <img src="./assets/modeling/modeling_07.jpg" alt="Portrait lit entirely in purple, beret and round sunglasses against a striped backdrop" loading="lazy" />
+                <img src="./assets/modeling/modeling_18.jpg" alt="Portrait in an orange coat and beanie, tinted square sunglasses against an orange backdrop" loading="lazy" />
+              </div>
+            </div>
+          </div>
+          <figcaption><span id="open-attr">data-kui="fade-open 600ms" data-open</span></figcaption>
+        </figure>
+      </section>
+
       <!-- COMPOSITION -->
       <section data-od-id="composition">
         <div class="section-head">
@@ -422,6 +639,63 @@
   <script src="./kuinetic.js" data-kui-manual></script>
   <script>
     window.__kui = kuinetic.kuinetic({ observe: true, reporter: kuinetic.consoleReporter() }).start()
+
+    // The switchers only rewrite one attribute. `observe: true` reinstalls the effect.
+    ;(function () {
+      function markActive(buttons, active) {
+        buttons.forEach(other => other.classList.toggle('is-active', other === active))
+      }
+
+      // Exits: play, wait, then let the pictures fade back so the button can be pressed again.
+      const exitStage = document.getElementById('exit-stage')
+      const exitLine = document.getElementById('exit-attr')
+      const exitButtons = document.querySelectorAll('[data-exit]')
+      const EXIT_MS = 1400
+      let exitTimer
+      exitButtons.forEach(button => button.addEventListener('click', () => {
+        clearTimeout(exitTimer)
+        if (exitStage.getAttribute('data-kui') === button.dataset.exit) {
+          window.__kui.reset(exitStage)
+          window.__kui.process(exitStage)
+        } else {
+          exitStage.setAttribute('data-kui', button.dataset.exit)
+        }
+        exitLine.textContent = `data-kui="${button.dataset.exit}"`
+        markActive(exitButtons, button)
+        exitTimer = setTimeout(() => {
+          exitStage.setAttribute('data-kui', 'fade-in 500ms target:.exit-pic on:load')
+        }, EXIT_MS)
+      }))
+
+      // Open and close: the app owns `data-open`, the library owns the motion in both directions.
+      const panel = document.getElementById('open-panel')
+      const openLine = document.getElementById('open-attr')
+      const openButtons = document.querySelectorAll('[data-open-switch]')
+      const CLOSE_MS = 650
+      let openTimer
+      openButtons.forEach(button => button.addEventListener('click', () => {
+        clearTimeout(openTimer)
+        panel.removeAttribute('data-open')
+        markActive(openButtons, button)
+        openTimer = setTimeout(() => {
+          panel.setAttribute('data-kui', button.dataset.openSwitch)
+          openLine.textContent = `data-kui="${button.dataset.openSwitch}" data-open`
+          // Two frames: the new effect's closed state has to be painted before opening can start from it.
+          requestAnimationFrame(() => requestAnimationFrame(() => panel.setAttribute('data-open', '')))
+        }, CLOSE_MS)
+      }))
+
+      // Ken Burns runs for ever, so it gets a pause button.
+      const kenPause = document.getElementById('ken-pause')
+      kenPause.addEventListener('click', () => {
+        const paused = kenPause.getAttribute('aria-pressed') !== 'true'
+        kenPause.setAttribute('aria-pressed', String(paused))
+        kenPause.querySelector('span').textContent = paused ? 'Play' : 'Pause'
+        const handle = window.__kui.control('.ken-card')
+        if (paused) handle.pause()
+        else handle.play()
+      })
+    })()
   </script>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>

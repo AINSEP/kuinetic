@@ -274,6 +274,283 @@
   .tab-panels { margin-top: 1.25rem; max-width: 60ch; }
   .tab-panel p { color: var(--muted); line-height: 1.65; }
   .tab-panel[hidden] { display: none; }
+
+  /* ---------- page-specific: swipe actions ---------- */
+  /* The action panels ride inside the row, just past its edges; the list clips them. */
+  .swipe-list { display: grid; gap: 0.75rem; overflow: clip; border-radius: 12px; }
+  .swipe-row {
+    position: relative; display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem;
+    border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--fg);
+    font-weight: 590; touch-action: pan-y; user-select: none; cursor: grab;
+  }
+  .swipe-row[data-kui-dragging='true'] { cursor: grabbing; }
+  .swipe-row img { display: block; flex: none; width: 64px; height: 64px; border-radius: 8px; object-fit: cover; object-position: top; pointer-events: none; }
+  .swipe-act {
+    position: absolute; inset-block: 0; inline-size: 120px; display: grid; place-items: center;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; font-weight: 700;
+  }
+  .swipe-act.is-right { left: 100%; background: var(--accent); color: var(--accent-ink); opacity: clamp(0, calc(var(--kui-drag-x, 0) / -60), 1); }
+  .swipe-act.is-left { right: 100%; background: var(--accent-ink); color: #ffffff; opacity: clamp(0, calc(var(--kui-drag-x, 0) / 60), 1); }
+
+  /* ---------- page-specific: flip-reorder leave ---------- */
+  .leave-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; }
+  .leave-row {
+    display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--fg); font-weight: 590;
+  }
+  .leave-row img { display: block; flex: none; width: 64px; height: 64px; border-radius: 8px; object-fit: cover; object-position: top; }
+  .leave-row span { flex: 1 1 auto; min-width: 0; }
+  .leave-row button {
+    flex: none; padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); font-size: 0.8rem; font-weight: 590;
+  }
+  .leave-row button:hover { border-color: var(--fg); }
+
+  /* ---------- page-specific: four-across picture grids, two-across on a phone ---------- */
+  .demo-grid.is-quad { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+  @media (min-width: 900px) { .demo-grid.is-quad { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.25rem; } }
+  #lightbox-grid .demo-card img { aspect-ratio: 3 / 4; }
+  #lightbox-grid .demo-card a { display: block; }
+  #dim-grid .demo-card[tabindex] { cursor: default; }
+  #dim-grid img[src$='black-cover.jpg'] { object-position: center 70%; }
+
+  /* The browser's default figure margin is 40px a side, which a phone cannot spare. */
+  #pointer figure, #three-d figure, #media figure { margin: 0; }
+
+  /* ---------- page-specific: anchored-preview ---------- */
+  .preview-stage { min-height: 350px; }
+  .preview-word {
+    display: inline-block; padding: 0.55rem 1.1rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); font-size: 0.9rem; font-weight: 590; white-space: nowrap; cursor: default;
+  }
+  .preview-word:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .preview-pic { display: block; width: 108px; max-width: none; aspect-ratio: 3 / 4; object-fit: cover; object-position: top; border-radius: 10px; border: 1px solid var(--border); box-shadow: var(--shadow-float); }
+
+  /* ---------- page-specific: group-expand ---------- */
+  .expand-row { gap: 0.75rem; min-height: 26rem; }
+  @media (min-width: 900px) { .expand-row { gap: 1.25rem; } }
+  .expand-card {
+    position: relative; display: block; min-height: 14rem; overflow: clip; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface); text-decoration: none;
+  }
+  .expand-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .expand-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .expand-card strong {
+    position: absolute; inset: auto 0 0 0; padding: 0.65rem 0.9rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.76rem; font-weight: 400; color: #ffffff; background: var(--accent-ink); white-space: nowrap; overflow: clip;
+  }
+  .expand-card [data-kui-expand-content] {
+    position: absolute; right: 0.75rem; bottom: 3rem; width: max-content; max-width: calc(100% - 1.5rem);
+    padding: 0.45rem 0.8rem; border-radius: 999px; font-size: 0.85rem; font-weight: 590; color: var(--accent-ink); background: var(--accent);
+  }
+  :root[data-theme='dark'] .expand-card strong { color: var(--accent-ink); background: var(--accent); }
+  :root[data-theme='dark'] .expand-card [data-kui-expand-content] { color: var(--accent); background: var(--accent-ink); }
+
+  /* ---------- page-specific: cursor-trail and the curved label ---------- */
+  /* isolation: the trail layer sits at z-index -1, and this keeps it above the arena's own fill. */
+  .trail-stage {
+    min-height: 420px; padding: 2rem; text-align: center; isolation: isolate;
+    --kui-trail-width: 150px; --kui-trail-height: 200px;
+  }
+  .trail-stage [data-kui-trail-layer] { border-radius: 12px 12px 0 0; }
+  .trail-stage [data-kui-trail-layer] img { border-radius: 10px; object-position: top; box-shadow: var(--shadow-float); }
+  .big-word { margin: 0; font-size: clamp(2.25rem, 1.6rem + 2.6vw, 3.75rem); line-height: 1.02; letter-spacing: -0.03em; font-weight: 700; color: var(--fg); pointer-events: none; }
+  .trail-sources { display: none; }
+  .curve-stage {
+    min-height: 300px; padding-block: 3rem; display: flex; align-items: center; justify-content: center; white-space: nowrap;
+    font-size: clamp(1.5rem, 1rem + 2.4vw, 3rem); font-weight: 700; letter-spacing: -0.02em; color: var(--fg);
+  }
+  .curve-badge { position: relative; display: inline-block; flex: none; width: 80px; height: 80px; margin-inline: 1.5rem; border: 1px solid currentColor; border-radius: 50%; }
+  .curve-badge svg { position: absolute; inset: -20px; width: 120px; height: 120px; overflow: visible; fill: currentColor; font-size: 10px; font-weight: 400; letter-spacing: 0.4px; }
+  .curve-photo { display: block; width: 80px; height: 80px; border-radius: 50%; overflow: hidden; }
+  .curve-photo[hidden] { display: none; }
+  .curve-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .kui-cursor-dot.curve-cursor { width: 80px; height: 80px; border-radius: 50%; background: transparent; }
+  @media (prefers-reduced-motion: reduce) { .curve-loop[data-kui-rm='shorten'] { animation-iteration-count: 1 !important; } }
+
+  /* ---------- page-specific: search-expand and press-depth ---------- */
+  .search-box {
+    height: 2.5em; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--fg); cursor: text;
+  }
+  .search-box:focus-within { border-color: var(--fg); }
+  .search-box svg { flex: none; width: 1em; height: 1em; margin-inline: 0.7em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .search-box input { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0 1em 0 0; border: 0; outline: 0; background: none; font: inherit; color: inherit; }
+  .depth-btn {
+    position: relative; display: block; width: 168px; padding: 0; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg); cursor: pointer; touch-action: manipulation; font: inherit;
+  }
+  /* At rest only: an unlayered shadow on :active would beat the library's collapsed one. */
+  .depth-btn:not(:active) { box-shadow: 0 18px 36px -14px rgb(0 0 0 / 0.55); }
+  .depth-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .depth-btn img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: top; border-radius: 9px; pointer-events: none; }
+
+  /* ---------- page-specific: 3D ---------- */
+  .three-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; }
+  .three-stage { min-height: 460px; padding: 2rem 1rem; }
+  .three-pic { display: block; width: min(280px, 100%); aspect-ratio: 3 / 4; object-fit: cover; object-position: top; border-radius: 10px; transition: translate 300ms ease, width 300ms ease; }
+  /* book-page-turn hinges on the left edge and lands to its left, so the spine sits mid-stage. */
+  .three-pic[data-kui^="book-page-turn"] { width: min(280px, 52%); translate: 50% 0; }
+  .three-cube { --kui-cube-size: clamp(150px, 16vw, 220px); width: var(--kui-cube-size); height: var(--kui-cube-size); }
+  .three-cube > div { background-size: cover; background-position: top; border: 1px solid var(--border); }
+  .motion-pause { display: inline-flex; align-items: center; gap: 0.45rem; }
+  .motion-pause svg { width: 12px; height: 12px; fill: currentColor; }
+  .matrix-group-controls .motion-pause[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .switch-line { overflow-wrap: anywhere; }
+
+  /* ---------- page-specific: before-after-wipe ---------- */
+  .demo-grid.is-duo { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .wipe-stack { display: grid; }
+  .wipe-stack img { grid-area: 1 / 1; }
+
+  /* ---------- page-specific: image-flight ---------- */
+  /* Every picture here is a square file in a square box, source and landing alike: the flight
+     stretches a picture whose shape differs from its box. */
+  .flight-floor { display: grid; gap: 1.25rem; align-items: start; }
+  @media (min-width: 900px) { .flight-floor { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); } }
+  .flight-shelf { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+  @media (min-width: 900px) { .flight-shelf { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; } }
+  #flight-shelf .demo-card img { aspect-ratio: 1; object-position: center; }
+  .add-btn {
+    display: block; width: 100%; padding: 0.65rem 0.9rem; border: 0; background: var(--accent-ink); color: #ffffff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; text-align: left; cursor: pointer;
+  }
+  :root[data-theme='dark'] .add-btn { color: var(--accent-ink); background: var(--accent); }
+  .add-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .flight-basket {
+    position: relative; display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--fg); font-weight: 590;
+  }
+  .flight-basket::after { border-radius: 12px; background: transparent; border: 1px solid var(--accent); }
+  .flight-slot { aspect-ratio: 1; width: 100%; max-width: 12rem; align-self: center; overflow: clip; border-radius: 8px; background-image: radial-gradient(color-mix(in srgb, var(--muted) 35%, transparent) 1px, transparent 1px); background-size: 18px 18px; }
+  .flight-slot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .flight-slot img[hidden] { display: none; }
+  @media (max-width: 899px) {
+    .flight-basket { order: -1; flex-direction: row; align-items: center; }
+    .flight-slot { width: 96px; flex: none; }
+  }
+
+  /* ---------- page-specific: forms ---------- */
+  .join-card { display: grid; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
+  @media (min-width: 900px) { .join-card { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); } }
+  .join-pic { position: relative; aspect-ratio: 4 / 3; max-height: 320px; width: 100%; }
+  @media (min-width: 900px) { .join-pic { aspect-ratio: auto; max-height: none; } }
+  .join-pic img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .join-form { display: grid; gap: 1.5rem; padding: clamp(1.5rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2.5rem); }
+  .join-row { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); align-items: start; }
+  .join-field { position: relative; display: block; border-radius: 8px; }
+  .join-input {
+    display: block; width: 100%; height: 3.1rem; padding: 0 2.75rem 0 0.85rem; box-sizing: border-box;
+    border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--fg); font: inherit; outline: none;
+  }
+  .join-input:focus { border-color: var(--fg); }
+  .join-input::placeholder { color: var(--muted); opacity: 1; }
+  .join-ring { position: relative; border-radius: 8px; --kui-ring-color: var(--accent); }
+  .join-field label {
+    position: absolute; left: 0.6rem; top: 0.85rem; padding: 0 0.25rem; background: var(--surface);
+    color: var(--muted); font-size: 0.95rem; line-height: 1.4; pointer-events: none;
+  }
+  .join-ring .kui-underline { position: absolute; left: 8px; right: 8px; top: calc(3.1rem - 2px); color: var(--fg); }
+  .join-tick {
+    position: absolute; right: 0.75rem; top: 0.8rem; width: 1.5rem; height: 1.5rem; pointer-events: none;
+    fill: none; stroke: #2e9e5b; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .kui-meter { display: flex; gap: 0.35rem; margin-top: 0.55rem; color: var(--muted); }
+  .kui-meter > span { flex: 1; height: 4px; border-radius: 2px; }
+  [data-join-invalid] .join-input { border-color: #d6452b; }
+  [data-join-invalid] .join-box { border-color: #d6452b; }
+  .join-set { margin: 0; padding: 0; border: 0; min-width: 0; }
+  .join-set legend, .join-range-head { padding: 0; margin-bottom: 0.65rem; font-size: 0.95rem; color: var(--muted); }
+  .join-range-head { display: flex; justify-content: space-between; gap: 1rem; }
+  .join-range-head output { color: var(--fg); font-weight: 590; font-variant-numeric: tabular-nums; }
+  .join-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .join-pill {
+    display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.85rem 0.45rem 0.6rem;
+    border: 1px solid var(--border); border-radius: 999px; font-size: 0.85rem; font-weight: 590; cursor: pointer;
+  }
+  .join-pill:has(input:checked) { border-color: var(--fg); }
+  .radio-mark { position: relative; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--muted); box-sizing: border-box; }
+  .radio-mark input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+  .radio-mark:has(input:focus-visible) { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .radio-mark .kui-dot { background: var(--fg); }
+  .join-range { display: block; width: 100%; margin: 0.5rem 0; cursor: pointer; }
+  .join-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--fg); border: 3px solid var(--surface); }
+  .join-range::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--fg); border: 3px solid var(--surface); }
+  .join-line { position: relative; display: flex; align-items: center; gap: 0.65rem; font-size: 0.95rem; cursor: pointer; --kui-thumb-color: var(--accent-ink); }
+  .join-line > input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+  .join-line > .kui-track { flex: none; }
+  .join-line > input:focus-visible ~ .kui-track, .join-line > input:focus-visible ~ .join-box { outline: 2px solid var(--fg); outline-offset: 2px; }
+  .join-box {
+    flex: none; width: 22px; height: 22px; box-sizing: border-box; border: 1.5px solid var(--muted); border-radius: 6px;
+    fill: none; stroke: var(--accent-ink); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .join-line > input:checked ~ .join-box { background: var(--accent); border-color: var(--accent); }
+  .join-submit { justify-self: start; min-width: 12rem; justify-content: center; border: 0; }
+  .join-submit > span { align-items: center; gap: 0.55rem; }
+  .join-submit svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+  .gesture-arena.is-flush { margin: 0; }
+
+  /* ---------- page-specific: motion paths ---------- */
+  /* The route is the same data as the attribute's path, inset by half the rider so it runs
+     through the point the library puts the rider's centre on. */
+  .path-stage { --rider: clamp(60px, 8vw, 84px); min-height: clamp(300px, 36vw, 420px); }
+  .path-route { position: absolute; left: calc(var(--rider) / 2); top: calc(var(--rider) / 2); width: calc(100% - var(--rider)); height: calc(100% - var(--rider)); pointer-events: none; }
+  .path-route path { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 6; vector-effect: non-scaling-stroke; }
+  .path-rider { position: relative; display: block; width: var(--rider); height: var(--rider); box-sizing: border-box; border-radius: 50%; border: 2px solid var(--bg); object-fit: cover; object-position: top; box-shadow: var(--shadow-float); }
+
+  /* ---------- page-specific: menus ---------- */
+  .menu-stage { position: relative; overflow: clip; height: clamp(440px, 46vw, 540px); border-radius: 12px; border: 1px solid var(--border); background: var(--bg); }
+  .menu-bar { display: flex; align-items: center; height: 3rem; padding: 0 1rem; background: var(--surface); border-bottom: 1px solid var(--border); font-weight: 590; letter-spacing: -0.01em; }
+  .menu-wall { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; height: calc(100% - 3rem); padding: 0.5rem; box-sizing: border-box; }
+  .menu-wall img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: cover; object-position: top; border-radius: 8px; }
+  .menu-panel { position: absolute; z-index: 1; background: var(--surface); color: var(--fg); border: 1px solid var(--border); box-shadow: var(--shadow-float); }
+  .menu-panel[hidden] { display: none; }
+  .menu-panel ul { list-style: none; margin: 0; padding: 0; }
+  .menu-item { display: block; width: 100%; padding: 0.6rem 0.75rem; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .menu-item:hover, .menu-item:focus-visible { background: var(--bg); outline: none; }
+  .menu-close { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 1; display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border: 1px solid currentColor; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; }
+  .menu-close:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+  .menu-close svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+  .menu-drop { top: 3.5rem; left: 0.75rem; width: min(16rem, calc(100% - 1.5rem)); box-sizing: border-box; padding: 0.5rem 3rem 0.5rem 0.5rem; border-radius: 10px; }
+  .menu-mega { top: 3rem; left: 0; right: 0; padding: 1rem 3.25rem 1rem 1rem; border-width: 0 0 1px; display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr)); gap: 0.5rem 1rem; }
+  .menu-mega h3 { margin: 0.6rem 0 0.25rem 0.75rem; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 590; }
+  .menu-stack { top: 3rem; left: 0; bottom: 0; width: min(20rem, 100%); box-sizing: border-box; padding: 1rem 3.25rem 1rem 0.75rem; border-width: 0 1px 0 0; }
+  .menu-stack .menu-item { font-size: clamp(1.4rem, 3vw, 1.85rem); font-weight: 590; letter-spacing: -0.02em; }
+  .menu-drawer { top: 0; right: 0; bottom: 0; width: min(20rem, 85%); box-sizing: border-box; padding: 3.25rem 0.75rem 1rem; border-width: 0 0 0 1px; }
+  .menu-full { inset: 0; display: grid; place-content: center; background: var(--accent); color: var(--accent-ink); border: 0; text-align: center; }
+  .menu-full .menu-item { text-align: center; font-size: clamp(1.6rem, 4vw, 2.5rem); font-weight: 590; letter-spacing: -0.02em; }
+  .menu-full .menu-item:hover, .menu-full .menu-item:focus-visible { background: transparent; text-decoration: underline; }
+
+  /* ---------- page-specific: page transitions ---------- */
+  .mini-stage { padding: clamp(1rem, 3vw, 2rem); }
+  .mini-page { width: min(640px, 100%); overflow: clip; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); box-shadow: var(--shadow-float); }
+  .mini-page > .mini-scene { display: none; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: end; }
+  .mini-page[data-scene='one'] > .scene-one,
+  .mini-page[data-scene='two'] > .scene-two,
+  .mini-page[data-scene='three'] > .scene-three { display: grid; }
+  .mini-scene img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: top; }
+  .mini-scene h3 { margin: 0; padding: 1rem; font-size: clamp(1.15rem, 1rem + 1.5vw, 2.1rem); line-height: 1.05; letter-spacing: -0.03em; overflow-wrap: anywhere; }
+  .morph-stage { width: min(640px, 100%); height: clamp(300px, 40vw, 460px); display: grid; align-items: center; }
+  .morph-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+  .morph-detail { display: none; grid-template-columns: auto minmax(0, 1fr); align-items: end; gap: 1rem; height: 100%; }
+  .morph-stage[data-open] > .morph-list { display: none; }
+  .morph-stage[data-open] > .morph-detail { display: grid; }
+  .morph-scene img { display: block; aspect-ratio: 3 / 4; object-fit: cover; object-position: top; border-radius: 10px; }
+  .morph-list img { width: 100%; }
+  .morph-detail img { height: clamp(300px, 40vw, 460px); width: auto; }
+  .morph-detail h3 { margin: 0; font-size: clamp(1.15rem, 1rem + 1.5vw, 2.1rem); line-height: 1.05; letter-spacing: -0.03em; }
+
+  /* ---------- no hover: what each pointer effect does on a touchscreen ---------- */
+  .needs-mouse { display: none; }
+  @media (hover: none), (pointer: coarse) {
+    /* A tap gives focus but not :focus-visible, so the tap has to be named here. */
+    .preview-word:focus { --kui-anchored-preview-shown: 1; }
+    #dim-grid:has(.demo-card:focus) > .demo-card:not(:focus) { opacity: var(--kui-group-dim-opacity, 0.4); }
+    /* No pointer to follow: the trail's pictures sit in a row instead. */
+    .trail-sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1.5rem; }
+    .trail-sources img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: top; border-radius: 8px; }
+    .needs-mouse { display: inline; }
+  }
 </style>
 </head>
 <body>
@@ -462,6 +739,27 @@
         </div>
 
         <div class="matrix-group">
+          <p class="matrix-group-label">Swipe actions — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="swipe-list">Show code</button>
+          </div>
+          <div class="swipe-list" id="swipe-list" data-kui="drag-x publish:true detents:'-120 0 120' target:.swipe-row">
+            <div class="swipe-row">
+              <img src="./assets/modeling/stripe-suit.jpg" alt="Portrait in a sharp-shouldered white pinstripe suit, cinched waist sash and white gloves" draggable="false" loading="lazy" />
+              Drag either way
+              <span class="swipe-act is-left" aria-hidden="true">Keep</span>
+              <span class="swipe-act is-right" aria-hidden="true">Archive</span>
+            </div>
+            <div class="swipe-row">
+              <img src="./assets/futurism/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" draggable="false" loading="lazy" />
+              It stops where the action shows
+              <span class="swipe-act is-left" aria-hidden="true">Keep</span>
+              <span class="swipe-act is-right" aria-hidden="true">Archive</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
           <p class="matrix-group-label">Pressable — 1</p>
           <div class="gesture-grid">
             <figure class="gesture-arena" data-show-code>
@@ -542,6 +840,22 @@
             <figure class="demo-card" tabindex="0"><img src="./assets/vase-dress.jpg" alt="Portrait of a model in a strapless navy-and-cream gown printed with abstract Picasso-style faces, beside a matching painted vase" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
             <figure class="demo-card" tabindex="0"><img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
             <figure class="demo-card" tabindex="0"><img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" loading="lazy" /><figcaption>click to bring forward</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">flip-reorder leave: — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="leave-restore">Bring them back</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="leave-list">Show code</button>
+          </div>
+          <div class="leave-list" id="leave-list" data-kui="flip-reorder leave:fade 300ms">
+            <div class="leave-row"><img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" loading="lazy" /><span>Silver mesh</span><button type="button">Dismiss</button></div>
+            <div class="leave-row"><img src="./assets/pink-mc.jpg" alt="Model in a pink floral blouse and matching trousers blowing a bubblegum bubble, seated cross-legged on a pink pedestal against a pink background" loading="lazy" /><span>Pink bubblegum</span><button type="button">Dismiss</button></div>
+            <div class="leave-row"><img src="./assets/futurism/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" loading="lazy" /><span>Grey helmet</span><button type="button">Dismiss</button></div>
+            <div class="leave-row"><img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><span>Gold visor</span><button type="button">Dismiss</button></div>
+            <div class="leave-row"><img src="./assets/vase-dress.jpg" alt="Portrait of a model in a strapless navy-and-cream gown printed with abstract Picasso-style faces, beside a matching painted vase" loading="lazy" /><span>Painted gown</span><button type="button">Dismiss</button></div>
+            <div class="leave-row"><img src="./assets/chap.jpg" alt="Portrait of a man in a tan blazer and cream sweater with sunglasses tucked into the collar, standing outdoors" loading="lazy" /><span>Tan blazer</span><button type="button">Dismiss</button></div>
           </div>
         </div>
 
@@ -697,6 +1011,458 @@
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- HOVER & POINTER -->
+      <section id="pointer" data-od-id="pointer">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Hover &amp; pointer</h2>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">anchored-preview — 3</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage preview-stage">
+                <span class="preview-word" tabindex="0" data-kui="anchored-preview tease:1600ms">
+                  Red visor
+                  <img class="preview-pic" data-kui-preview src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" />
+                </span>
+              </div>
+              <figcaption>data-kui="anchored-preview" — pops out above</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage preview-stage">
+                <span class="preview-word" tabindex="0" data-kui="anchored-preview-left tease:1600ms">
+                  Gold face
+                  <img class="preview-pic" data-kui-preview src="./assets/futurism/gold-white-face.jpg" alt="Beauty portrait of a matte white face with molten liquid gold dripping over the eyes and mouth, bold red lips" />
+                </span>
+              </div>
+              <figcaption>data-kui="anchored-preview-left" — pops out left</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage preview-stage">
+                <span class="preview-word" tabindex="0" data-kui="anchored-preview-right tease:1600ms">
+                  Black helmet
+                  <img class="preview-pic" data-kui-preview src="./assets/futurism/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" />
+                </span>
+              </div>
+              <figcaption>data-kui="anchored-preview-right" — pops out right</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">group-dim — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="dim-grid">Show code</button>
+          </div>
+          <div class="demo-grid is-quad" id="dim-grid" data-kui="group-dim">
+            <figure class="demo-card" tabindex="0"><img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" loading="lazy" /><figcaption>white hood</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/black-cover.jpg" alt="Beauty portrait of a face wrapped in a black headwrap down to the nose, gold drop earrings, matte black lipstick" loading="lazy" /><figcaption>black wrap</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/spotted-shirt.jpg" alt="Portrait of a man in a bold navy-and-cream swirl-print turtleneck sweater on a city street" loading="lazy" /><figcaption>swirl knit</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/futurism/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /><figcaption>wire rings</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">group-expand — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="expand-row">Show code</button>
+          </div>
+          <div class="expand-row" id="expand-row" data-kui="group-expand grow:4 400ms, lightbox">
+            <a class="expand-card" href="./assets/futurism/strange-hat.jpg"><img src="./assets/futurism/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><strong>shell</strong><span data-kui-expand-content>A headpiece that glows at dusk.</span></a>
+            <a class="expand-card" href="./assets/modeling/akira-pantsuit.jpg"><img src="./assets/modeling/akira-pantsuit.jpg" alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots" loading="lazy" /><strong>navy</strong><span data-kui-expand-content>Oversized, with the tie let loose.</span></a>
+            <a class="expand-card" href="./assets/futurism/goldface.jpg"><img src="./assets/futurism/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" /><strong>gold</strong><span data-kui-expand-content>A face in liquid silk.</span></a>
+            <a class="expand-card" href="./assets/modeling/stripe-suit.jpg"><img src="./assets/modeling/stripe-suit.jpg" alt="Portrait in a sharp-shouldered white pinstripe suit, cinched waist sash and white gloves" loading="lazy" /><strong>stripe</strong><span data-kui-expand-content>Sharp shoulders, white gloves.</span></a>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">proximity-field &amp; proximity-glow — 2<span class="needs-mouse"> · needs a mouse</span></p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="glow-grid">Show code</button>
+          </div>
+          <div class="demo-grid is-quad" id="glow-grid" data-kui="proximity-field, proximity-glow target:.demo-card radius:320px width:3px">
+            <figure class="demo-card"><img src="./assets/futurism/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet with a reflective visor and matching black leather jacket" loading="lazy" /><figcaption>black helmet</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a model with white hair wearing a glowing red LED visor and white high-collar jacket against a dark red background" loading="lazy" /><figcaption>red visor</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/futurism/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey rounded helmet with an integrated mechanical ear piece, gloved hand raised to the chin" loading="lazy" /><figcaption>grey helmet</figcaption></figure>
+            <figure class="demo-card"><img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>gold visor</figcaption></figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">cursor-trail — 1</p>
+          <figure class="gesture-arena" data-show-code>
+            <div class="gesture-stage trail-stage" data-kui="cursor-trail images:'.trail-src' spacing:60px">
+              <div>
+                <h3 class="big-word">Move across</h3>
+                <div class="trail-sources">
+                  <img class="trail-src" src="./assets/modeling/lilac-turban.jpg" alt="Portrait of a model in a lilac turban and ribbed high collar on a violet background" />
+                  <img class="trail-src" src="./assets/modeling/cobalt-profile.jpg" alt="Upturned profile of a figure in wire-rim glasses, lit blue against a lilac background" />
+                  <img class="trail-src" src="./assets/modeling/teal-sculpted-hat.jpg" alt="Portrait of a model in a sculpted pale teal hat against a matching teal background" />
+                  <img class="trail-src" src="./assets/modeling/pink-ruffle-crown.jpg" alt="Portrait of a model with a crown of pink ruffles and a sheer pink high-collared top" />
+                  <img class="trail-src" src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile portrait of a model with slicked blonde hair and gold cube earrings" />
+                  <img class="trail-src" src="./assets/modeling/blue-lip-gloves.jpg" alt="Portrait of a model with curly white hair, blue lipstick and fluffy blue gloves" />
+                </div>
+              </div>
+            </div>
+            <figcaption>data-kui="cursor-trail" — this box only</figcaption>
+          </figure>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">Curved label · cursor-follow over: — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="motion-pause" id="curve-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause</span></button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="curve-stage">Show code</button>
+          </div>
+          <figure class="gesture-arena">
+            <div class="gesture-stage curve-stage" id="curve-stage" data-kui="cursor-follow over:.curve-badge snap:center dot-class:curve-cursor">
+              PORT<span class="curve-badge"><svg class="curve-loop" viewBox="0 0 120 120" role="img" aria-label="See more" data-kui="tween rotate:360 12s ease:linear repeat:infinite"><defs><path id="curve-circle" d="M60 10 A50 50 0 1 1 60 110 A50 50 0 1 1 60 10" /></defs><text><textPath href="#curve-circle">SEE MORE · SEE MORE · SEE MORE · SEE MORE · SEE MORE ·</textPath></text></svg><span class="curve-photo" data-kui-cursor-content hidden><img src="./assets/futurism/gold-white-face.jpg" alt="" /></span></span>RAITS
+            </div>
+            <figcaption>hover the ring — a photo snaps to its centre</figcaption>
+          </figure>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">search-expand &amp; press-depth — 2</p>
+          <div class="gesture-grid">
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage">
+                <label class="search-box" data-kui="search-expand width:240px">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M16.5 16.5 21 21" /></svg>
+                  <input data-kui-search-field type="search" placeholder="Search…" aria-label="Search" />
+                </label>
+              </div>
+              <figcaption>data-kui="search-expand" — hover or tap</figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage" style="padding-block: 2rem;">
+                <button type="button" class="depth-btn" data-kui="press-depth scale:0.9 depth:6px"><img src="./assets/yellow_mc.jpg" alt="Press and hold: a model in an oversized yellow wool coat on an orange background" draggable="false" /></button>
+              </div>
+              <figcaption>data-kui="press-depth" — press and hold</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3D -->
+      <section id="three-d" data-od-id="three-d">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">3D</h2>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">card-flip-y · cube-rotate · book-page-turn · fold-panel — 4</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="is-active" data-flip="card-flip-y 1200ms on:enter">card-flip-y</button>
+            <button type="button" data-flip="cube-rotate 1200ms on:enter">cube-rotate</button>
+            <button type="button" data-flip="book-page-turn 1200ms on:enter">book-page-turn</button>
+            <button type="button" data-flip="fold-panel 1200ms on:enter">fold-panel</button>
+            <button type="button" class="motion-pause" id="cube-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause cube</span></button>
+          </div>
+          <div class="three-grid">
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage three-stage">
+                <img class="three-pic" id="flip-stage" src="./assets/modeling/chartreuse-gold-portrait.jpg" alt="Portrait of a laughing model with gold eye makeup and a gold jacket against a chartreuse background" data-kui="card-flip-y 1200ms on:enter" />
+              </div>
+              <figcaption class="switch-line"><span id="flip-line"></span></figcaption>
+            </figure>
+            <figure class="gesture-arena" data-show-code>
+              <div class="gesture-stage three-stage">
+                <div class="three-cube" id="three-cube" data-kui="cube-rotate parts:cube tumble:true 8s ease:linear repeat:infinite" role="img" aria-label="A cube of six portraits, tumbling">
+                  <div style="background-image:url(./assets/silver-glitter.jpg)"></div>
+                  <div style="background-image:url(./assets/futurism/asian-red-visor.jpg)"></div>
+                  <div style="background-image:url(./assets/futurism/sunny-visor.jpg)"></div>
+                  <div style="background-image:url(./assets/pink-mc.jpg)"></div>
+                  <div style="background-image:url(./assets/white-shades.jpg)"></div>
+                  <div style="background-image:url(./assets/futurism/black-futurism.jpg)"></div>
+                </div>
+              </div>
+              <figcaption class="switch-line">data-kui="cube-rotate parts:cube tumble:true"</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- MEDIA -->
+      <section id="media" data-od-id="media">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Media</h2>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">before-after-wipe &amp; lightbox-open — 2</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="media-replay">Replay both</button>
+          </div>
+          <div class="demo-grid is-duo">
+            <figure class="demo-card" data-show-code>
+              <div class="wipe-stack">
+                <img src="./assets/futurism/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" />
+                <img class="media-replay" src="./assets/futurism/gold-white-face.jpg" alt="Beauty portrait of a matte white face with molten liquid gold dripping over the eyes and mouth, bold red lips" data-kui="before-after-wipe 1400ms on:enter" />
+              </div>
+              <figcaption>data-kui="before-after-wipe 1400ms"</figcaption>
+            </figure>
+            <figure class="demo-card" data-show-code>
+              <img class="media-replay" src="./assets/modeling/teal-sculpted-hat.jpg" alt="Portrait of a model in a sculpted pale teal hat against a matching teal background" data-kui="lightbox-open 900ms on:enter" />
+              <figcaption>data-kui="lightbox-open 900ms"</figcaption>
+            </figure>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">image-flight — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="flight-floor">Show code</button>
+          </div>
+          <div class="flight-floor" id="flight-floor">
+            <div class="flight-shelf" id="flight-shelf" data-kui="image-flight image:img destination:#flight-slot lift:80px 700ms on:click target:.add-btn">
+              <figure class="demo-card" data-kui-flight-source><img src="./assets/product/nike_shoe.jpg" alt="A red running shoe with silver swoosh detailing, floating on a dark background" loading="lazy" /><button type="button" class="add-btn">Add to basket</button></figure>
+              <figure class="demo-card" data-kui-flight-source><img src="./assets/product/luxury_watch.jpg" alt="A grey steel watch with a dark glass face and mesh strap, resting on black slate" loading="lazy" /><button type="button" class="add-btn">Add to basket</button></figure>
+              <figure class="demo-card" data-kui-flight-source><img src="./assets/product/designer_audio.jpg" alt="Dark over-ear headphones with brown leather padding on a grey background" loading="lazy" /><button type="button" class="add-btn">Add to basket</button></figure>
+            </div>
+            <div class="flight-basket" id="flight-basket" data-kui="ripple extent:2 startScale:1 450ms" data-kui-on="kui:finish from:.add-btn">
+              <div class="flight-slot" id="flight-slot"><img id="flight-slot-pic" alt="" hidden /></div>
+              <span>Basket <span id="flight-count">0</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">lightbox flight:true — 1</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="lightbox-grid">Show code</button>
+          </div>
+          <div class="demo-grid is-quad" id="lightbox-grid" data-kui="lightbox flight:true">
+            <figure class="demo-card"><a href="./assets/modeling/lilac-turban.jpg"><img src="./assets/modeling/lilac-turban.jpg" alt="Portrait of a model in a lilac turban and ribbed high collar on a violet background" loading="lazy" /></a><figcaption>lilac</figcaption></figure>
+            <figure class="demo-card"><a href="./assets/modeling/cobalt-profile.jpg"><img src="./assets/modeling/cobalt-profile.jpg" alt="Upturned profile of a figure in wire-rim glasses, lit blue against a lilac background" loading="lazy" /></a><figcaption>cobalt</figcaption></figure>
+            <figure class="demo-card"><a href="./assets/modeling/teal-sculpted-hat.jpg"><img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Portrait of a model in a sculpted pale teal hat against a matching teal background" loading="lazy" /></a><figcaption>teal</figcaption></figure>
+            <figure class="demo-card"><a href="./assets/modeling/pink-ruffle-crown.jpg"><img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Portrait of a model with a crown of pink ruffles and a sheer pink high-collared top" loading="lazy" /></a><figcaption>pink</figcaption></figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- FORMS -->
+      <section id="forms" data-od-id="forms">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Forms</h2>
+        </div>
+
+        <div class="matrix-group">
+          <p class="matrix-group-label">label-float · input-underline-grow · focus-ring-grow · strength-meter · validate-check · validate-shake · radio-fill · range-fill · toggle-morph · checkbox-draw · submit-to-spinner-to-check — 11</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="join-form">Show code</button>
+          </div>
+          <div class="join-card">
+            <div class="join-pic"><img src="./assets/modeling/stripe-suit.jpg" alt="A tailored white pinstripe double-breasted jacket with sculpted shoulders, a black tie and white gloves" loading="lazy" /></div>
+            <form class="join-form" id="join-form" novalidate>
+              <div class="join-row">
+                <div class="join-field" data-kui="validate-shake on:manual">
+                  <input class="join-input" id="join-name" type="text" autocomplete="name" placeholder=" " required data-kui="label-float" />
+                  <label for="join-name">Name</label>
+                </div>
+                <div class="join-field" data-kui="validate-shake on:manual">
+                  <div class="join-ring" id="join-ring" data-kui="focus-ring-grow">
+                    <input class="join-input" id="join-email" type="email" autocomplete="email" placeholder="Email" aria-label="Email" required data-kui="input-underline-grow" />
+                    <span class="kui-underline"></span>
+                    <svg class="join-tick" viewBox="0 0 24 24" aria-hidden="true"><path id="join-email-tick" d="M5 13 L10 18 L19 7" data-kui="validate-check on:manual" /></svg>
+                  </div>
+                </div>
+              </div>
+              <div class="join-field" data-kui="validate-shake on:manual">
+                <input class="join-input" id="join-password" type="password" autocomplete="new-password" placeholder=" " required minlength="8" data-kui="label-float, strength-meter" />
+                <label for="join-password">Password</label>
+                <div class="kui-meter" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+              </div>
+              <div class="join-row">
+                <fieldset class="join-set">
+                  <legend>Size</legend>
+                  <div class="join-pills">
+                    <label class="join-pill"><span class="radio-mark"><input type="radio" name="size" value="s" data-kui="radio-fill" /><span class="kui-dot"></span></span>S</label>
+                    <label class="join-pill"><span class="radio-mark"><input type="radio" name="size" value="m" checked data-kui="radio-fill" /><span class="kui-dot"></span></span>M</label>
+                    <label class="join-pill"><span class="radio-mark"><input type="radio" name="size" value="l" data-kui="radio-fill" /><span class="kui-dot"></span></span>L</label>
+                  </div>
+                </fieldset>
+                <div>
+                  <div class="join-range-head"><label for="join-fittings">Fittings</label><output id="join-fittings-out" for="join-fittings">3</output></div>
+                  <input class="join-range" id="join-fittings" type="range" min="1" max="8" value="3" data-kui="range-fill" />
+                </div>
+              </div>
+              <label class="join-line"><input type="checkbox" data-kui="toggle-morph" /><span class="kui-track"><span class="kui-thumb"></span></span>Send me new collections</label>
+              <div class="join-terms" data-kui="validate-shake on:manual">
+                <label class="join-line"><input id="join-terms" type="checkbox" required data-kui="checkbox-draw" /><svg class="join-box" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12 L10 17 L19 7" /></svg>I accept the terms</label>
+              </div>
+              <button type="submit" class="btn btn-primary join-submit" data-kui="submit-to-spinner-to-check">
+                <span class="kui-stage-idle">Create account</span>
+                <span class="kui-stage-loading"><span class="kui-spinner"></span>Sending</span>
+                <span class="kui-stage-done"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13 L10 19 L20 7" /></svg>Done</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- MOTION PATHS -->
+      <section id="motion-paths" data-od-id="motion-paths">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Motion paths</h2>
+        </div>
+
+        <div class="matrix-group" id="path-group">
+          <p class="matrix-group-label">path-arc · path-wave · path-loop · path-swoop · motion-path — 5</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="is-active" data-path="path-arc viewbox:'0 -60 160 70' anchor:center 2400ms yoyo:true repeat:infinite">path-arc</button>
+            <button type="button" data-path="path-wave viewbox:'0 -30 150 60' anchor:center 2400ms yoyo:true repeat:infinite">path-wave</button>
+            <button type="button" data-path="path-loop viewbox:'-5 -60 120 120' anchor:center 3600ms repeat:infinite">path-loop</button>
+            <button type="button" data-path="path-swoop viewbox:'-125 -5 130 80' anchor:center 1800ms yoyo:true repeat:infinite">path-swoop</button>
+            <button type="button" data-path="motion-path path:'M 0 50 C 40 0 80 0 120 50 C 160 100 200 100 240 50 C 200 0 160 0 120 50 C 80 100 40 100 0 50' viewbox:'-5 0 250 100' anchor:center 5s ease:linear repeat:infinite">motion-path</button>
+            <button type="button" class="motion-pause" id="path-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause path</span></button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="path-group">Show code</button>
+          </div>
+          <figure class="gesture-arena is-flush">
+            <div class="gesture-stage path-stage">
+              <svg class="path-route" id="path-route" viewBox="0 -60 160 70" aria-hidden="true"><path d="M 0 0 C 40 -70 120 -70 160 0" /></svg>
+              <img class="path-rider" id="path-rider" src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile of a model with slicked platinum hair and stacked gold cube earrings" data-kui="path-arc viewbox:'0 -60 160 70' anchor:center 2400ms yoyo:true repeat:infinite" />
+            </div>
+            <figcaption class="switch-line" id="path-line"></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- MENUS -->
+      <section id="menus" data-od-id="menus">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Menus</h2>
+        </div>
+
+        <div class="matrix-group" id="menu-group">
+          <p class="matrix-group-label">dropdown-open · mega-menu-drop · menu-stagger-open · drawer-slide · menu-fullscreen — 5</p>
+          <div class="matrix-group-controls">
+            <button type="button" data-menu="dropdown-open" aria-controls="menu-drop" aria-expanded="false">dropdown-open</button>
+            <button type="button" data-menu="mega-menu-drop" aria-controls="menu-mega" aria-expanded="false">mega-menu-drop</button>
+            <button type="button" data-menu="menu-stagger-open" aria-controls="menu-stack" aria-expanded="false">menu-stagger-open</button>
+            <button type="button" data-menu="drawer-slide" aria-controls="menu-drawer" aria-expanded="false">drawer-slide</button>
+            <button type="button" data-menu="menu-fullscreen" aria-controls="menu-full" aria-expanded="false">menu-fullscreen</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="menu-group">Show code</button>
+          </div>
+          <div class="menu-stage" id="menu-stage">
+            <div class="menu-bar">Atelier</div>
+            <div class="menu-wall">
+              <img src="./assets/modeling/black-and-yellow.jpg" alt="A model in a black roll-neck and wide trousers embroidered with yellow ginkgo leaves, walking a runway" loading="lazy" />
+              <img src="./assets/modeling/green-monochrome.jpg" alt="A model in a green jumpsuit and white platform shoes, one knee raised, against a matching green wall" loading="lazy" />
+              <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, blue lipstick and cobalt fur gloves framing the face" loading="lazy" />
+            </div>
+
+            <div class="menu-panel menu-drop" id="menu-drop" hidden data-kui="dropdown-open on:manual">
+              <ul>
+                <li><button type="button" class="menu-item">New in</button></li>
+                <li><button type="button" class="menu-item">Tailoring</button></li>
+                <li><button type="button" class="menu-item">Knitwear</button></li>
+                <li><button type="button" class="menu-item">Sale</button></li>
+              </ul>
+              <button type="button" class="menu-close" aria-label="Close menu"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1 L11 11 M11 1 L1 11" /></svg></button>
+            </div>
+
+            <div class="menu-panel menu-mega" id="menu-mega" hidden data-kui="mega-menu-drop on:manual">
+              <div><h3>Women</h3><ul><li><button type="button" class="menu-item">Suits</button></li><li><button type="button" class="menu-item">Dresses</button></li><li><button type="button" class="menu-item">Coats</button></li></ul></div>
+              <div><h3>Men</h3><ul><li><button type="button" class="menu-item">Suits</button></li><li><button type="button" class="menu-item">Shirts</button></li><li><button type="button" class="menu-item">Shoes</button></li></ul></div>
+              <div><h3>Objects</h3><ul><li><button type="button" class="menu-item">Glasses</button></li><li><button type="button" class="menu-item">Watches</button></li><li><button type="button" class="menu-item">Audio</button></li></ul></div>
+              <button type="button" class="menu-close" aria-label="Close menu"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1 L11 11 M11 1 L1 11" /></svg></button>
+            </div>
+
+            <div class="menu-panel menu-stack" id="menu-stack" hidden>
+              <ul data-kui="menu-stagger-open target:li cascade:80ms on:manual">
+                <li><button type="button" class="menu-item">Work</button></li>
+                <li><button type="button" class="menu-item">Shop</button></li>
+                <li><button type="button" class="menu-item">Journal</button></li>
+                <li><button type="button" class="menu-item">About</button></li>
+                <li><button type="button" class="menu-item">Contact</button></li>
+              </ul>
+              <button type="button" class="menu-close" aria-label="Close menu"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1 L11 11 M11 1 L1 11" /></svg></button>
+            </div>
+
+            <div class="menu-panel menu-drawer" id="menu-drawer" hidden data-kui="drawer-slide on:manual">
+              <ul>
+                <li><button type="button" class="menu-item">Bag</button></li>
+                <li><button type="button" class="menu-item">Wishlist</button></li>
+                <li><button type="button" class="menu-item">Orders</button></li>
+                <li><button type="button" class="menu-item">Account</button></li>
+              </ul>
+              <button type="button" class="menu-close" aria-label="Close menu"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1 L11 11 M11 1 L1 11" /></svg></button>
+            </div>
+
+            <div class="menu-panel menu-full" id="menu-full" hidden data-kui="menu-fullscreen 700ms on:manual">
+              <ul>
+                <li><button type="button" class="menu-item">Work</button></li>
+                <li><button type="button" class="menu-item">Shop</button></li>
+                <li><button type="button" class="menu-item">Journal</button></li>
+              </ul>
+              <button type="button" class="menu-close" aria-label="Close menu"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1 1 L11 11 M11 1 L1 11" /></svg></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PAGE TRANSITIONS -->
+      <section id="page-transitions" data-od-id="page-transitions">
+        <div class="section-head">
+          <h2 data-kui="fade-up on:enter">Page transitions</h2>
+        </div>
+
+        <div class="matrix-group" id="page-group">
+          <p class="matrix-group-label">page-fade · page-slide · curtain-wipe — 3</p>
+          <div class="matrix-group-controls">
+            <button type="button" class="is-active" data-page="page-fade 800ms on:enter">page-fade</button>
+            <button type="button" data-page="page-slide 800ms on:enter">page-slide</button>
+            <button type="button" data-page="curtain-wipe 900ms on:enter">curtain-wipe</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="page-group">Show code</button>
+          </div>
+          <figure class="gesture-arena is-flush">
+            <div class="gesture-stage mini-stage">
+              <div class="mini-page" id="mini-page" data-scene="one" data-kui="page-fade 800ms on:enter">
+                <article class="mini-scene scene-one">
+                  <img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Portrait of a model in a sculpted pale teal hat against a matching teal background" loading="lazy" />
+                  <h3>Spring millinery</h3>
+                </article>
+                <article class="mini-scene scene-two">
+                  <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, blue lipstick and cobalt fur gloves framing the face" loading="lazy" />
+                  <h3>Cobalt beauty</h3>
+                </article>
+                <article class="mini-scene scene-three">
+                  <img src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile of a model with slicked platinum hair and stacked gold cube earrings" loading="lazy" />
+                  <h3>Gold objects</h3>
+                </article>
+              </div>
+            </div>
+            <figcaption class="switch-line" id="page-line"></figcaption>
+          </figure>
+        </div>
+
+        <div class="matrix-group" id="morph-group">
+          <p class="matrix-group-label">view-swap · page-morph — 2</p>
+          <div class="matrix-group-controls">
+            <button type="button" id="morph-toggle" aria-controls="morph-stage" aria-expanded="false" data-kui="view-swap">Open the picture</button>
+            <button type="button" class="kui-show-code-toggle" data-show-code-target="morph-group">Show code</button>
+          </div>
+          <figure class="gesture-arena is-flush">
+            <div class="gesture-stage mini-stage">
+              <div class="morph-stage" id="morph-stage">
+                <div class="morph-scene morph-list">
+                  <img src="./assets/modeling/black-and-yellow.jpg" alt="A model in a black roll-neck and wide trousers embroidered with yellow ginkgo leaves, walking a runway" data-kui="page-morph name:morph-shot" />
+                  <img src="./assets/modeling/lilac-turban.jpg" alt="Portrait of a model in a lilac turban and ribbed high collar on a violet background" loading="lazy" />
+                  <img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Portrait of a model with a crown of pink ruffles and a sheer pink high-collared top" loading="lazy" />
+                </div>
+                <div class="morph-scene morph-detail">
+                  <img src="./assets/modeling/black-and-yellow.jpg" alt="A model in a black roll-neck and wide trousers embroidered with yellow ginkgo leaves, walking a runway" data-kui="page-morph name:morph-shot" />
+                  <h3>Ginkgo on black</h3>
+                </div>
+              </div>
+            </div>
+            <figcaption class="switch-line">data-kui="view-swap" · data-kui="page-morph name:morph-shot"</figcaption>
+          </figure>
         </div>
       </section>
 
@@ -866,6 +1632,245 @@
       // Programmatic API — replay a declarative entrance effect through the JS registry
       document.querySelector('#replay').addEventListener('click', function () {
         window.__kui.play('#shuffle-grid .demo-card', 'pop-in', { duration: 500, stagger: 60 })
+      })
+
+      // flip-reorder leave: — the app marks a row, the library fades it, the app removes it
+      var leaveList = document.querySelector('#leave-list')
+      var leaveRestore = document.querySelector('#leave-restore')
+      var leaveRows = Array.prototype.slice.call(leaveList.children).map(function (row) { return row.cloneNode(true) })
+      leaveList.addEventListener('click', function (event) {
+        var button = event.target.closest('button')
+        if (!button) return
+        var row = button.closest('.leave-row')
+        // A leaving row turns inert and drops focus, and focus is the app's to keep.
+        var neighbour = row.nextElementSibling || row.previousElementSibling
+        ;(neighbour ? neighbour.querySelector('button') : leaveRestore).focus()
+        row.setAttribute('data-kui-leaving', '')
+      })
+      leaveList.addEventListener('kui:leave-end', function (event) {
+        event.target.remove()
+      })
+      leaveRestore.addEventListener('click', function () {
+        var names = Array.prototype.map.call(leaveList.children, function (row) { return row.querySelector('span').textContent })
+        leaveRows.forEach(function (row) {
+          if (names.indexOf(row.querySelector('span').textContent) === -1) leaveList.appendChild(row.cloneNode(true))
+        })
+      })
+
+      // One 3D picture, four effects. A new value reinstalls through `observe: true`; the same
+      // value does nothing there, so a second press of a button resets and plays it again.
+      function replay(el) {
+        window.__kui.reset(el)
+        // Reading the style lets the browser drop the old animation. Without it the new one
+        // joins it, and a resting effect stays on its last frame.
+        getComputedStyle(el).animationName
+        window.__kui.process(el)
+      }
+      var flipStage = document.querySelector('#flip-stage')
+      var flipLine = document.querySelector('#flip-line')
+      var flipButtons = document.querySelectorAll('[data-flip]')
+      // The switch lines are filled here, not in the markup: Show code prints the authored page, and
+      // a line written there would still name the first effect after a button had changed it.
+      flipLine.textContent = 'data-kui="' + flipStage.getAttribute('data-kui') + '"'
+      // cube-rotate rests side-on and book-page-turn rests mirrored, so the page plays them back.
+      var flipReturn = 0
+      flipStage.addEventListener('animationend', function (event) {
+        if (event.target !== flipStage || !/^kui-(cube-rotate|book-page-turn)$/.test(event.animationName)) return
+        var motion = flipStage.getAnimations().filter(function (animation) {
+          return animation.animationName === event.animationName && animation.playbackRate > 0
+        })[0]
+        if (!motion) return
+        flipReturn = window.setTimeout(function () {
+          if (motion.playState === 'finished') motion.reverse()
+        }, 450)
+      })
+      flipButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          window.clearTimeout(flipReturn)
+          if (flipStage.getAttribute('data-kui') === button.dataset.flip) replay(flipStage)
+          else flipStage.setAttribute('data-kui', button.dataset.flip)
+          flipLine.textContent = 'data-kui="' + button.dataset.flip + '"'
+          flipButtons.forEach(function (other) { other.classList.toggle('is-active', other === button) })
+        })
+      })
+
+      // before-after-wipe and lightbox-open are one-shots, so they get a replay button
+      document.querySelector('#media-replay').addEventListener('click', function () {
+        document.querySelectorAll('.media-replay').forEach(replay)
+      })
+
+      // The tumbling cube and the curved label run for ever, so each gets a pause button
+      function wirePause(button, selector, label) {
+        button.addEventListener('click', function () {
+          var paused = button.getAttribute('aria-pressed') !== 'true'
+          button.setAttribute('aria-pressed', String(paused))
+          button.querySelector('span').textContent = (paused ? 'Play' : 'Pause') + label
+          var motion = window.__kui.control(selector)
+          if (paused) motion.pause()
+          else motion.play()
+        })
+      }
+      wirePause(document.querySelector('#cube-pause'), '#three-cube', ' cube')
+      wirePause(document.querySelector('#curve-pause'), '.curve-loop', '')
+
+      // image-flight — the app owns the basket; it fills on landing, not on the click
+      var flightCount = document.querySelector('#flight-count')
+      var flightPic = document.querySelector('#flight-slot-pic')
+      document.querySelector('#flight-shelf').addEventListener('kui:finish', function (event) {
+        var source = event.target.closest('[data-kui-flight-source]')
+        if (!source) return
+        var picture = source.querySelector('img')
+        flightPic.src = picture.currentSrc || picture.src
+        flightPic.alt = picture.alt
+        flightPic.hidden = false
+        flightCount.textContent = String(Number(flightCount.textContent) + 1)
+      })
+
+      // Forms. The library plays the effects; which field is wrong is the app's to say.
+      var joinForm = document.querySelector('#join-form')
+      var joinSubmit = joinForm.querySelector('.join-submit')
+      var joinEmail = document.querySelector('#join-email')
+      var joinTick = document.querySelector('#join-email-tick')
+      var joinFittings = document.querySelector('#join-fittings')
+      var joinFittingsOut = document.querySelector('#join-fittings-out')
+      var tickShown = false
+      function syncEmailTick() {
+        var valid = joinEmail.value !== '' && joinEmail.validity.valid
+        if (valid === tickShown) return
+        tickShown = valid
+        replay(joinTick)
+        if (valid) window.__kui.play(joinTick, 'validate-check')
+      }
+      function wrongMark(input) {
+        return input.closest('.join-field, .join-terms')
+      }
+      joinEmail.addEventListener('input', syncEmailTick)
+      // focus-ring-grow holds its ring after blur, so the page takes it down.
+      var joinRing = document.querySelector('#join-ring')
+      joinEmail.addEventListener('blur', function () { replay(joinRing) })
+      joinFittings.addEventListener('input', function () { joinFittingsOut.textContent = joinFittings.value })
+      joinForm.addEventListener('input', function (event) {
+        var mark = wrongMark(event.target)
+        if (mark && event.target.validity.valid) mark.removeAttribute('data-join-invalid')
+      })
+      joinForm.addEventListener('change', function (event) {
+        var mark = wrongMark(event.target)
+        if (mark && event.target.validity.valid) mark.removeAttribute('data-join-invalid')
+      })
+      // Capture, so a form with a wrong field never reaches the button's own spinner listener.
+      joinForm.addEventListener('click', function (event) {
+        if (!event.target.closest('.join-submit') || joinForm.checkValidity()) return
+        event.preventDefault()
+        event.stopPropagation()
+        var wrong = joinForm.querySelectorAll('input:invalid')
+        wrong.forEach(function (input) {
+          var mark = wrongMark(input)
+          mark.setAttribute('data-join-invalid', '')
+          window.__kui.play(mark, 'validate-shake')
+        })
+        wrong[0].focus({ preventScroll: true })
+      }, true)
+      joinForm.addEventListener('submit', function (event) {
+        // It never leaves the page. The form empties once the button has shown its tick.
+        event.preventDefault()
+        if (joinSubmit.getAttribute('data-kui-stage') === 'done') return
+        window.setTimeout(function () {
+          joinForm.reset()
+          joinFittingsOut.textContent = joinFittings.value
+          joinForm.querySelectorAll('input').forEach(function (input) {
+            input.dispatchEvent(new Event('input', { bubbles: true }))
+          })
+        }, 2900)
+      })
+
+      // One picture, five paths. Same value twice replays; a new value reinstalls.
+      var pathRider = document.querySelector('#path-rider')
+      var pathRoute = document.querySelector('#path-route')
+      var pathLine = document.querySelector('#path-line')
+      var pathPause = document.querySelector('#path-pause')
+      var pathButtons = document.querySelectorAll('[data-path]')
+      pathLine.textContent = 'data-kui="' + pathRider.getAttribute('data-kui') + '"'
+      var pathRoutes = {
+        'path-arc': 'M 0 0 C 40 -70 120 -70 160 0',
+        'path-wave': 'M 0 0 C 45 -45 105 45 150 0',
+        'path-loop': 'M 0 0 C 0 -70 110 -70 110 0 C 110 70 0 70 0 0',
+        'path-swoop': 'M -120 70 C -70 70 -25 25 0 0',
+        'motion-path': 'M 0 50 C 40 0 80 0 120 50 C 160 100 200 100 240 50 C 200 0 160 0 120 50 C 80 100 40 100 0 50',
+      }
+      pathButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var value = button.dataset.path
+          if (pathRider.getAttribute('data-kui') === value) replay(pathRider)
+          else pathRider.setAttribute('data-kui', value)
+          pathRoute.setAttribute('viewBox', value.match(/viewbox:'([^']+)'/)[1])
+          pathRoute.firstElementChild.setAttribute('d', pathRoutes[button.textContent])
+          pathLine.textContent = 'data-kui="' + value + '"'
+          pathButtons.forEach(function (other) { other.classList.toggle('is-active', other === button) })
+          // A freshly installed path is running, so the pause button goes back to saying so.
+          pathPause.setAttribute('aria-pressed', 'false')
+          pathPause.querySelector('span').textContent = 'Pause path'
+        })
+      })
+      wirePause(pathPause, '#path-rider', ' path')
+
+      // Menus. The library animates the panel; open, close and focus stay with the page, so each
+      // one stays inside its stage and nothing here holds the keyboard.
+      var menuStage = document.querySelector('#menu-stage')
+      var menuButtons = document.querySelectorAll('[data-menu]')
+      var openMenuButton = null
+      function closeMenu(giveFocusBack) {
+        if (!openMenuButton) return
+        var button = openMenuButton
+        openMenuButton = null
+        document.getElementById(button.getAttribute('aria-controls')).hidden = true
+        button.setAttribute('aria-expanded', 'false')
+        button.classList.remove('is-active')
+        if (giveFocusBack) button.focus({ preventScroll: true })
+      }
+      menuButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var wasOpen = openMenuButton === button
+          closeMenu(false)
+          if (wasOpen) return
+          var panel = document.getElementById(button.getAttribute('aria-controls'))
+          panel.hidden = false
+          button.setAttribute('aria-expanded', 'true')
+          button.classList.add('is-active')
+          openMenuButton = button
+          window.__kui.activate(panel.matches('[data-kui]') ? panel : panel.querySelector('[data-kui]'))
+          panel.querySelector('.menu-close').focus({ preventScroll: true })
+        })
+      })
+      menuStage.addEventListener('click', function (event) {
+        // The close button, any item, or the page behind the menu all close it.
+        var inPanel = event.target.closest('.menu-panel')
+        if (!inPanel || event.target.closest('.menu-close, .menu-item')) closeMenu(true)
+      })
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && openMenuButton) closeMenu(true)
+      })
+
+      // Mini page: each press goes to the next page and plays the arrival on it.
+      var miniPage = document.querySelector('#mini-page')
+      var pageLine = document.querySelector('#page-line')
+      var pageButtons = document.querySelectorAll('[data-page]')
+      pageLine.textContent = 'data-kui="' + miniPage.getAttribute('data-kui') + '"'
+      var miniScenes = ['one', 'two', 'three']
+      pageButtons.forEach(function (button) {
+        button.addEventListener('click', function () {
+          var at = miniScenes.indexOf(miniPage.getAttribute('data-scene'))
+          miniPage.setAttribute('data-scene', miniScenes[(at + 1) % miniScenes.length])
+          if (miniPage.getAttribute('data-kui') === button.dataset.page) replay(miniPage)
+          else miniPage.setAttribute('data-kui', button.dataset.page)
+          pageLine.textContent = 'data-kui="' + button.dataset.page + '"'
+          pageButtons.forEach(function (other) { other.classList.toggle('is-active', other === button) })
+        })
+      })
+
+      // view-swap flips the stage's data-scene itself; this only keeps the button's words true.
+      var morphToggle = document.querySelector('#morph-toggle')
+      morphToggle.addEventListener('click', function () {
+        morphToggle.textContent = morphToggle.textContent === 'Open the picture' ? 'Back to the grid' : 'Open the picture'
       })
     })()
   </script>
