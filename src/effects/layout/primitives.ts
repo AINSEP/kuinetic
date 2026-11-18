@@ -302,10 +302,14 @@ function prepareIndicator(el: Element, params: EffectParams, ctx: PrepareContext
 
     const before = engine.snapshot([node])
     const box = target.getBoundingClientRect()
-    const current = node.getBoundingClientRect()
-    // Translate by the *delta*, not the target's viewport x. Writing an absolute coordinate as a
-    // relative transform overshot by the indicator's own starting offset.
-    const shift = box.left - current.left + currentShift
+    // Measure against the indicator's untransformed layout slot, never its live rect. The live rect
+    // includes the in-flight FLIP (which starts inverted at the old spot), so a second `move()` during
+    // a slide — a tab switch fires several attribute mutations — added the delta again and the bar
+    // overshot further on every click. `offsetLeft` and the offset parent's box ignore transforms.
+    const origin = node.offsetParent instanceof Element
+      ? node.offsetParent.getBoundingClientRect().left + node.offsetParent.clientLeft + node.offsetLeft
+      : node.getBoundingClientRect().left - currentShift
+    const shift = box.left - origin
     currentShift = shift
     ctx.style.set('width', `${box.width}px`)
     ctx.style.set('translate', `${shift}px 0`)

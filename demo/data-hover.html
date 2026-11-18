@@ -185,9 +185,13 @@
     mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
   }
   main .kui-contract .kui-show-code-toggle { margin: 0; opacity: 1; }
-  .matrix-group .demo-grid.colour-set { margin-top: 1rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-  .colour-set img { aspect-ratio: 4 / 5; object-position: 50% 20%; }
-  .colour-set img:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .colour-set { margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+  .colour-tile {
+    display: flex; align-items: center; justify-content: center; min-height: 9rem;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--fg);
+    font-weight: 600; font-size: 1.1rem; cursor: pointer;
+  }
+  .colour-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ---------- buttons, borders, icons (section I) ---------- */
   .fx-body { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 1.75rem 1.25rem; }
@@ -232,7 +236,7 @@
   .tilt-media { position: relative; flex: none; }
   .tilt-media img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
   /* Scrim behind the depth-layered overlay text so it reads regardless of how bright the
-     underlying photo is (mens_accessories_flatlay.jpg is a light, low-contrast frame). */
+     underlying photo is. */
   .tilt-media::after {
     content: ''; position: absolute; inset: 0; pointer-events: none;
     background: linear-gradient(180deg, transparent 45%, rgb(0 0 0 / 0.6) 100%);
@@ -612,12 +616,12 @@
           <p class="note">Move the pointer over each card, or Tab to it.</p>
           <div class="demo-grid" data-kui="cascade:120ms">
             <figure class="demo-card" data-kui="tilt-3d" tabindex="0" data-show-code>
-              <img src="./assets/product/azzaro_cologne.jpg" alt="Matte black Azzaro cologne bottle with a diamond-quilted band, wisps of smoke curling beside sprigs of juniper" loading="lazy" />
+              <img src="./assets/dark-premium/dark-02.jpg" alt="The Lunetra site hero — a woman in silhouette against deep blue light beside the Lunetra wordmark" loading="lazy" />
               <figcaption>data-kui="tilt-3d"</figcaption>
             </figure>
             <figure class="demo-card tilt-parallax-card" data-kui="tilt-parallax" tabindex="0" data-show-code>
               <div class="tilt-media">
-                <img src="./assets/product/mens_accessories_flatlay.jpg" alt="Black leather brogues, belt, sunglasses, bow tie, cufflinks, and wristwatch arranged as a flat lay on a light textured sheet" loading="lazy" />
+                <img src="./assets/dark-premium/dark-10.jpg" alt="An art museum site — a black-and-white sculpture of The Three Graces under a spaced serif title" loading="lazy" />
                 <b data-depth="24">tilt-parallax</b>
                 <small data-depth="6">layers move at different depths</small>
               </div>
@@ -627,18 +631,13 @@
         </div>
 
         <div class="matrix-group" id="colour-demo">
-          <p class="matrix-group-label">Colour — 3</p>
-          <div class="pill-row">
-            <button type="button" aria-pressed="true" data-switch="grayscale-hover target:img on:hover/unhover">grayscale-hover</button>
-            <button type="button" aria-pressed="false" data-switch="saturate-hover target:img on:hover/unhover">saturate-hover</button>
-            <button type="button" aria-pressed="false" data-switch="duotone-hover target:img on:hover/unhover">duotone-hover</button>
-          </div>
-          <p class="kui-contract"><code id="colour-attr">data-kui="grayscale-hover target:img on:hover/unhover"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="colour-demo">Show code</button></p>
-          <div class="demo-grid demo-grid--paper colour-set" id="colour-set" data-kui="grayscale-hover target:img on:hover/unhover">
-            <div class="demo-card"><img src="./assets/modeling/yellow-paint-blue-bob.jpg" alt="Woman with a blue bob and dark blue lips, a patch of yellow paint across her eyes, on a yellow backdrop" tabindex="0" loading="lazy" /></div>
-            <div class="demo-card"><img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Woman in a sheer pink beaded dress with a crown of pink ruffled flowers, on a magenta backdrop" tabindex="0" loading="lazy" /></div>
-            <div class="demo-card"><img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Woman in a sculpted turquoise hat that curls around her face, on a deep teal backdrop" tabindex="0" loading="lazy" /></div>
-            <div class="demo-card"><img src="./assets/modeling/cobalt-profile.jpg" alt="Dark sculptural head in profile wearing clear glasses, lit cobalt blue, on a lilac backdrop" tabindex="0" loading="lazy" /></div>
+          <p class="matrix-group-label">Colour — 1</p>
+          <p class="kui-contract"><code>data-kui="tween background-color:#e4f222 color:#000000 400ms on:hover/unhover"</code><button type="button" class="kui-show-code-toggle" data-show-code-target="colour-demo">Show code</button></p>
+          <div class="colour-set">
+            <div class="colour-tile" tabindex="0" data-kui="tween background-color:#e4f222 color:#000000 400ms on:hover/unhover">Ink</div>
+            <div class="colour-tile" tabindex="0" data-kui="tween background-color:#000000 color:#e4f222 400ms on:hover/unhover">Signal</div>
+            <div class="colour-tile" tabindex="0" data-kui="tween background-color:#666666 color:#ffffff 400ms on:hover/unhover">Slate</div>
+            <div class="colour-tile" tabindex="0" data-kui="tween background-color:#e4e4e2 color:#000000 400ms on:hover/unhover">Paper</div>
           </div>
         </div>
 
@@ -681,40 +680,6 @@
       }))
     })()
 
-    // The colour hovers: a button rewrites one attribute, and `observe: true` reinstalls the effect.
-    // Nothing hovers on a press, on arrival or on a touchscreen, so those send the pictures the same
-    // pointer events a mouse would, and the library plays the effect in and back out.
-    ;(function () {
-      const HOLD_MS = 1100
-      const set = document.getElementById('colour-set')
-      const line = document.getElementById('colour-attr')
-      const buttons = document.querySelectorAll('[data-switch]')
-      const pictures = [...set.querySelectorAll('img')]
-      const timers = new Map()
-      const playThrough = picture => {
-        clearTimeout(timers.get(picture))
-        picture.dispatchEvent(new PointerEvent('pointerenter'))
-        timers.set(picture, setTimeout(() => picture.dispatchEvent(new PointerEvent('pointerleave')), HOLD_MS))
-      }
-
-      buttons.forEach(button => button.addEventListener('click', () => {
-        set.setAttribute('data-kui', button.dataset.switch)
-        line.textContent = `data-kui="${button.dataset.switch}"`
-        buttons.forEach(other => other.setAttribute('aria-pressed', String(other === button)))
-        // After the animator's own observer has reinstalled the effect on the pictures.
-        requestAnimationFrame(() => requestAnimationFrame(() => pictures.forEach(playThrough)))
-      }))
-
-      if (matchMedia('(hover: none)').matches) {
-        set.addEventListener('click', event => { if (pictures.includes(event.target)) playThrough(event.target) })
-      }
-
-      new IntersectionObserver((entries, observer) => {
-        if (!entries[0].isIntersecting) return
-        observer.disconnect()
-        pictures.forEach(playThrough)
-      }, { threshold: 0.4 }).observe(set)
-    })()
   </script>
   <script src="./replay.js"></script>
   <script src="./show-code.js"></script>

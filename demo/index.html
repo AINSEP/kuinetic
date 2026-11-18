@@ -524,7 +524,7 @@
      applies before `rotate`, so it moves in unrotated space, unlike a `transform` (applied after,
      i.e. along the turned axes). Its percentages resolve against the element's own box, and that is
      the whole trick: `50%` is half the width, which is exactly the unknown that varies between "VC:
-     Kling AI" and "VC: @jojogh_007", so it cancels out and one rule fits all three. The rest is the
+     Kling AI" and "VC: Echoes Beneath the Venetian Masks", so it cancels out and one rule fits all three. The rest is the
      gap from the edge plus half a line box (`0.5lh`), because a strip `1lh` wide centred on a point
      has its right edge half a line box further right. */
   .video-hero-credit {
@@ -1178,6 +1178,15 @@
   .section-head h2 { font-size: clamp(1.75rem, 1vw + 1.4rem, 2.35rem); letter-spacing: -0.03em; line-height: 1.08; max-width: 22ch; }
   .section-head p { margin-top: 0.9rem; color: var(--muted); max-width: 50ch; line-height: 1.7; }
   .section-head .kicker { margin-bottom: 1rem; }
+  /* "Style?" reveal: where the pictures came from. Collapsed it is one muted mono word; open it adds a line or two. */
+  .style-note { margin-top: 1.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.68rem; line-height: 1.55; color: var(--muted); }
+  .style-note summary { display: inline-block; cursor: pointer; list-style: none; letter-spacing: 0.04em; opacity: 0.8; }
+  .style-note summary::-webkit-details-marker { display: none; }
+  .style-note summary::before { content: '+ '; }
+  .style-note[open] summary::before { content: '\2212 '; }
+  .style-note summary:hover, .style-note summary:focus-visible { color: var(--fg); opacity: 1; }
+  .style-note p { margin: 0.3rem 0 0; max-width: 62ch; }
+  .style-note strong { font-weight: 600; color: var(--fg); }
 
   /* ---------- rev-notes: short bullets in place of a paragraph ---------- */
   /* Same component scroll.html uses for the same job — a paragraph that was really 2-3 separate
@@ -2301,17 +2310,17 @@
         class="video-hero-slide"
         id="video-hero-slide-2"
         inert
-        data-source-url="https://x.com/jojogh_007/status/2049123558102810714/video/1"
+        data-source-url="https://www.pinterest.com/pin/563090759681954930/"
         data-mobile-src="./assets/webdesign/kling-veiled-royalty-mobile.mp4"
         data-mobile-poster="./assets/webdesign/kling-veiled-royalty-mobile-poster.jpg"
         data-mobile-credit="VC: Kling AI"
         data-mobile-source-url="https://kling.ai/app/ai-shorts-video/veiled-royalty-dark-light/861802271851167831"
-        data-kui="bg src:./assets/webdesign/brick-build-hero.mp4 poster:./assets/webdesign/brick-build-hero-poster.jpg fit:cover autoplay:always"
+        data-kui="bg src:./assets/webdesign/venetian-mask-hero.mp4 poster:./assets/webdesign/venetian-mask-hero-poster.jpg fit:cover autoplay:always"
       >
         <p class="video-hero-caption"><span data-kui="split-chars delay:400ms on:load">Animate</span> <span data-kui="fade-up 500ms 2000ms on:load"><span data-kui="word-cycler words:anything|text|numbers|images|videos|backgrounds interval:2200ms delay:4200ms">anything</span></span></p>
-        <p class="video-hero-credit" data-kui="rotate-static angle:90deg">VC: @jojogh_007</p>
+        <p class="video-hero-credit" data-kui="rotate-static angle:90deg">VC: Echoes Beneath the Venetian Masks</p>
         <button type="button" class="kui-show-code-toggle video-hero-code" data-show-code-target="video-hero-slide-2">Show code</button>
-        <a class="video-hero-source" href="https://x.com/jojogh_007/status/2049123558102810714/video/1" target="_blank" rel="noopener noreferrer">Source ↗</a>
+        <a class="video-hero-source" href="https://www.pinterest.com/pin/563090759681954930/" target="_blank" rel="noopener noreferrer">Source ↗</a>
       </div>
 
       <div class="video-hero-dots" role="tablist" aria-label="Choose a background video">
@@ -3246,6 +3255,13 @@
           </a>
 
         </div>
+
+        <details class="style-note"><summary>Style?</summary>
+          <p><strong>Surreal pastel set design</strong><br>Pinterest: "surreal pastel set design photography"</p>
+          <p><strong>Candy-coloured architecture</strong><br>Pinterest: "candy colored architecture photography"</p>
+          <p><strong>Retro-futurist space-age fashion</strong><br>Pinterest: "retro futurism space age fashion photography"</p>
+          <p><strong>Colour-block astronaut editorial</strong><br>Pinterest: the owner's own pins (no search)</p>
+        </details>
 
         <div class="catalog-more">
           <a href="./reveals.html" class="btn btn-primary" data-kui="lift-shadow">Open the effect pages</a>

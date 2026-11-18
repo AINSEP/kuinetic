@@ -309,8 +309,6 @@
   /* ---------- page-specific: four-across picture grids, two-across on a phone ---------- */
   .demo-grid.is-quad { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
   @media (min-width: 900px) { .demo-grid.is-quad { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.25rem; } }
-  #lightbox-grid .demo-card img { aspect-ratio: 3 / 4; }
-  #lightbox-grid .demo-card a { display: block; }
   #dim-grid .demo-card[tabindex] { cursor: default; }
   #dim-grid img[src$='black-cover.jpg'] { object-position: center 70%; }
 
@@ -401,33 +399,6 @@
   .demo-grid.is-duo { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
   .wipe-stack { display: grid; }
   .wipe-stack img { grid-area: 1 / 1; }
-
-  /* ---------- page-specific: image-flight ---------- */
-  /* Every picture here is a square file in a square box, source and landing alike: the flight
-     stretches a picture whose shape differs from its box. */
-  .flight-floor { display: grid; gap: 1.25rem; align-items: start; }
-  @media (min-width: 900px) { .flight-floor { grid-template-columns: minmax(0, 3fr) minmax(0, 1fr); } }
-  .flight-shelf { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
-  @media (min-width: 900px) { .flight-shelf { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; } }
-  #flight-shelf .demo-card img { aspect-ratio: 1; object-position: center; }
-  .add-btn {
-    display: block; width: 100%; padding: 0.65rem 0.9rem; border: 0; background: var(--accent-ink); color: #ffffff;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.76rem; text-align: left; cursor: pointer;
-  }
-  :root[data-theme='dark'] .add-btn { color: var(--accent-ink); background: var(--accent); }
-  .add-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .flight-basket {
-    position: relative; display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; border-radius: 12px;
-    border: 1px solid var(--border); background: var(--surface); color: var(--fg); font-weight: 590;
-  }
-  .flight-basket::after { border-radius: 12px; background: transparent; border: 1px solid var(--accent); }
-  .flight-slot { aspect-ratio: 1; width: 100%; max-width: 12rem; align-self: center; overflow: clip; border-radius: 8px; background-image: radial-gradient(color-mix(in srgb, var(--muted) 35%, transparent) 1px, transparent 1px); background-size: 18px 18px; }
-  .flight-slot img { display: block; width: 100%; height: 100%; object-fit: cover; }
-  .flight-slot img[hidden] { display: none; }
-  @media (max-width: 899px) {
-    .flight-basket { order: -1; flex-direction: row; align-items: center; }
-    .flight-slot { width: 96px; flex: none; }
-  }
 
   /* ---------- page-specific: forms ---------- */
   .join-card { display: grid; overflow: clip; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); }
@@ -599,8 +570,8 @@
         </div>
         <div class="hero-media">
           <img
-            src="./assets/modeling/akira-pantsuit.jpg"
-            alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots"
+            src="./assets/futurism/gold-helmet.jpg"
+            alt="Portrait in a mirrored gold visor helmet and a gold chain collar"
             data-kui="blur-in 2000ms on:load, snap-back"
             draggable="false"
           />
@@ -745,7 +716,7 @@
           </div>
           <div class="swipe-list" id="swipe-list" data-kui="drag-x publish:true detents:'-120 0 120' target:.swipe-row">
             <div class="swipe-row">
-              <img src="./assets/modeling/stripe-suit.jpg" alt="Portrait in a sharp-shouldered white pinstripe suit, cinched waist sash and white gloves" draggable="false" loading="lazy" />
+              <img src="./assets/futurism/red-fashion.jpg" alt="Face under a glossy crimson visor helmet with ringed earrings and a lip spike" draggable="false" loading="lazy" />
               Drag either way
               <span class="swipe-act is-left" aria-hidden="true">Keep</span>
               <span class="swipe-act is-right" aria-hidden="true">Archive</span>
@@ -824,7 +795,7 @@
             <figure class="demo-card" data-tone="classic"><img src="./assets/spotted-shirt.jpg" alt="Portrait of a man in a bold navy-and-cream swirl-print turtleneck sweater on a city street" loading="lazy" /><figcaption>classic</figcaption></figure>
             <figure class="demo-card" data-tone="futuristic"><img src="./assets/white-shades.jpg" alt="Close-up portrait of a model in an all-white hooded outfit and mirrored wraparound sunglasses with bold red lipstick" loading="lazy" /><figcaption>futuristic</figcaption></figure>
             <figure class="demo-card" data-tone="futuristic"><img src="./assets/futurism/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><figcaption>futuristic</figcaption></figure>
-            <figure class="demo-card" data-tone="classic"><img src="./assets/modeling/akira-pantsuit.jpg" alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots" loading="lazy" /><figcaption>classic</figcaption></figure>
+            <figure class="demo-card" data-tone="classic"><img src="./assets/futurism/gold-helmet.jpg" alt="Portrait in a mirrored gold visor helmet and a gold chain collar" loading="lazy" /><figcaption>classic</figcaption></figure>
             <figure class="demo-card" data-tone="futuristic"><img src="./assets/futurism/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /><figcaption>futuristic</figcaption></figure>
           </div>
         </div>
@@ -938,7 +909,7 @@
           </div>
           <div class="demo-grid modal-grid" id="modal-grid" data-kui="expand-to-modal">
             <figure class="demo-card" tabindex="0"><img src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" loading="lazy" /><figcaption>click to expand</figcaption></figure>
-            <figure class="demo-card" tabindex="0"><img src="./assets/modeling/akira-pantsuit.jpg" alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots" loading="lazy" /><figcaption>click to expand</figcaption></figure>
+            <figure class="demo-card" tabindex="0"><img src="./assets/futurism/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet and black leather jacket" loading="lazy" /><figcaption>click to expand</figcaption></figure>
             <figure class="demo-card" tabindex="0"><img src="./assets/pink-mc.jpg" alt="Model in a pink floral blouse and matching trousers blowing a bubblegum bubble, seated cross-legged on a pink pedestal against a pink background" loading="lazy" /><figcaption>click to expand</figcaption></figure>
             <figure class="demo-card" tabindex="0"><img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor catching warm sunlight, nose and lips visible below" loading="lazy" /><figcaption>click to expand</figcaption></figure>
           </div>
@@ -1073,9 +1044,9 @@
           </div>
           <div class="expand-row" id="expand-row" data-kui="group-expand grow:4 400ms, lightbox">
             <a class="expand-card" href="./assets/futurism/strange-hat.jpg"><img src="./assets/futurism/strange-hat.jpg" alt="Profile portrait of a model wearing a glowing translucent sculptural headpiece shaped like a shell, dusk cityscape behind" loading="lazy" /><strong>shell</strong><span data-kui-expand-content>A headpiece that glows at dusk.</span></a>
-            <a class="expand-card" href="./assets/modeling/akira-pantsuit.jpg"><img src="./assets/modeling/akira-pantsuit.jpg" alt="Editorial photo of a model in an oversized navy wrap-style pantsuit with a loosened tie, seated with tan lace-up heeled boots" loading="lazy" /><strong>navy</strong><span data-kui-expand-content>Oversized, with the tie let loose.</span></a>
+            <a class="expand-card" href="./assets/futurism/asian-white-visor.jpg"><img src="./assets/futurism/asian-white-visor.jpg" alt="Face under a white visor and helmet with a pink glow, white hair and a quilted high collar" loading="lazy" /><strong>visor</strong><span data-kui-expand-content>A pink glow under white.</span></a>
             <a class="expand-card" href="./assets/futurism/goldface.jpg"><img src="./assets/futurism/goldface.jpg" alt="Abstract beauty portrait of a face rendered in liquid gold silk, fabric swirled around the head" loading="lazy" /><strong>gold</strong><span data-kui-expand-content>A face in liquid silk.</span></a>
-            <a class="expand-card" href="./assets/modeling/stripe-suit.jpg"><img src="./assets/modeling/stripe-suit.jpg" alt="Portrait in a sharp-shouldered white pinstripe suit, cinched waist sash and white gloves" loading="lazy" /><strong>stripe</strong><span data-kui-expand-content>Sharp shoulders, white gloves.</span></a>
+            <a class="expand-card" href="./assets/futurism/gold-helmet.jpg"><img src="./assets/futurism/gold-helmet.jpg" alt="Portrait in a mirrored gold visor helmet and a gold chain collar" loading="lazy" /><strong>helmet</strong><span data-kui-expand-content>A mirror-gold visor.</span></a>
           </div>
         </div>
 
@@ -1099,12 +1070,12 @@
               <div>
                 <h3 class="big-word">Move across</h3>
                 <div class="trail-sources">
-                  <img class="trail-src" src="./assets/modeling/lilac-turban.jpg" alt="Portrait of a model in a lilac turban and ribbed high collar on a violet background" />
-                  <img class="trail-src" src="./assets/modeling/cobalt-profile.jpg" alt="Upturned profile of a figure in wire-rim glasses, lit blue against a lilac background" />
-                  <img class="trail-src" src="./assets/modeling/teal-sculpted-hat.jpg" alt="Portrait of a model in a sculpted pale teal hat against a matching teal background" />
-                  <img class="trail-src" src="./assets/modeling/pink-ruffle-crown.jpg" alt="Portrait of a model with a crown of pink ruffles and a sheer pink high-collared top" />
-                  <img class="trail-src" src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile portrait of a model with slicked blonde hair and gold cube earrings" />
-                  <img class="trail-src" src="./assets/modeling/blue-lip-gloves.jpg" alt="Portrait of a model with curly white hair, blue lipstick and fluffy blue gloves" />
+                  <img class="trail-src" src="./assets/futurism/gold-helmet.jpg" alt="Portrait in a mirrored gold visor helmet and a gold chain collar" />
+                  <img class="trail-src" src="./assets/futurism/red-fashion.jpg" alt="Face under a glossy crimson visor helmet with ringed earrings and a lip spike" />
+                  <img class="trail-src" src="./assets/silver-glitter.jpg" alt="Close-up portrait of a model in a rhinestone-mesh hood and turtleneck, red lipstick and a nose ring" />
+                  <img class="trail-src" src="./assets/futurism/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" />
+                  <img class="trail-src" src="./assets/futurism/asian-white-visor.jpg" alt="Face under a white visor and helmet with a pink glow, white hair and a quilted high collar" />
+                  <img class="trail-src" src="./assets/futurism/vr_headset_dark_studio.jpg" alt="Model in a white oversized dress and VR headset sitting in a black-and-white checkered room" />
                 </div>
               </div>
             </div>
@@ -1140,7 +1111,7 @@
             </figure>
             <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage" style="padding-block: 2rem;">
-                <button type="button" class="depth-btn" data-kui="press-depth scale:0.9 depth:6px"><img src="./assets/yellow_mc.jpg" alt="Press and hold: a model in an oversized yellow wool coat on an orange background" draggable="false" /></button>
+                <button type="button" class="depth-btn" data-kui="press-depth scale:0.9 depth:6px"><img src="./assets/futurism/sunny-visor.jpg" alt="Press and hold: a model in a golden dome-shaped reflective visor" draggable="false" /></button>
               </div>
               <figcaption>data-kui="press-depth" — press and hold</figcaption>
             </figure>
@@ -1166,7 +1137,7 @@
           <div class="three-grid">
             <figure class="gesture-arena" data-show-code>
               <div class="gesture-stage three-stage">
-                <img class="three-pic" id="flip-stage" src="./assets/modeling/chartreuse-gold-portrait.jpg" alt="Portrait of a laughing model with gold eye makeup and a gold jacket against a chartreuse background" data-kui="card-flip-y 1200ms on:enter" />
+                <img class="three-pic" id="flip-stage" src="./assets/futurism/red-fashion.jpg" alt="Face under a glossy crimson visor helmet with ringed earrings and a lip spike" data-kui="card-flip-y 1200ms on:enter" />
               </div>
               <figcaption class="switch-line"><span id="flip-line"></span></figcaption>
             </figure>
@@ -1207,42 +1178,12 @@
               <figcaption>data-kui="before-after-wipe 1400ms"</figcaption>
             </figure>
             <figure class="demo-card" data-show-code>
-              <img class="media-replay" src="./assets/modeling/teal-sculpted-hat.jpg" alt="Portrait of a model in a sculpted pale teal hat against a matching teal background" data-kui="lightbox-open 900ms on:enter" />
+              <img class="media-replay" src="./assets/futurism/asian-white-visor.jpg" alt="Face under a white visor and helmet with a pink glow, white hair and a quilted high collar" data-kui="lightbox-open 900ms on:enter" />
               <figcaption>data-kui="lightbox-open 900ms"</figcaption>
             </figure>
           </div>
         </div>
 
-        <div class="matrix-group">
-          <p class="matrix-group-label">image-flight — 1</p>
-          <div class="matrix-group-controls">
-            <button type="button" class="kui-show-code-toggle" data-show-code-target="flight-floor">Show code</button>
-          </div>
-          <div class="flight-floor" id="flight-floor">
-            <div class="flight-shelf" id="flight-shelf" data-kui="image-flight image:img destination:#flight-slot lift:80px 700ms on:click target:.add-btn">
-              <figure class="demo-card" data-kui-flight-source><img src="./assets/product/nike_shoe.jpg" alt="A red running shoe with silver swoosh detailing, floating on a dark background" loading="lazy" /><button type="button" class="add-btn">Add to basket</button></figure>
-              <figure class="demo-card" data-kui-flight-source><img src="./assets/product/luxury_watch.jpg" alt="A grey steel watch with a dark glass face and mesh strap, resting on black slate" loading="lazy" /><button type="button" class="add-btn">Add to basket</button></figure>
-              <figure class="demo-card" data-kui-flight-source><img src="./assets/product/designer_audio.jpg" alt="Dark over-ear headphones with brown leather padding on a grey background" loading="lazy" /><button type="button" class="add-btn">Add to basket</button></figure>
-            </div>
-            <div class="flight-basket" id="flight-basket" data-kui="ripple extent:2 startScale:1 450ms" data-kui-on="kui:finish from:.add-btn">
-              <div class="flight-slot" id="flight-slot"><img id="flight-slot-pic" alt="" hidden /></div>
-              <span>Basket <span id="flight-count">0</span></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="matrix-group">
-          <p class="matrix-group-label">lightbox flight:true — 1</p>
-          <div class="matrix-group-controls">
-            <button type="button" class="kui-show-code-toggle" data-show-code-target="lightbox-grid">Show code</button>
-          </div>
-          <div class="demo-grid is-quad" id="lightbox-grid" data-kui="lightbox flight:true">
-            <figure class="demo-card"><a href="./assets/modeling/lilac-turban.jpg"><img src="./assets/modeling/lilac-turban.jpg" alt="Portrait of a model in a lilac turban and ribbed high collar on a violet background" loading="lazy" /></a><figcaption>lilac</figcaption></figure>
-            <figure class="demo-card"><a href="./assets/modeling/cobalt-profile.jpg"><img src="./assets/modeling/cobalt-profile.jpg" alt="Upturned profile of a figure in wire-rim glasses, lit blue against a lilac background" loading="lazy" /></a><figcaption>cobalt</figcaption></figure>
-            <figure class="demo-card"><a href="./assets/modeling/teal-sculpted-hat.jpg"><img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Portrait of a model in a sculpted pale teal hat against a matching teal background" loading="lazy" /></a><figcaption>teal</figcaption></figure>
-            <figure class="demo-card"><a href="./assets/modeling/pink-ruffle-crown.jpg"><img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Portrait of a model with a crown of pink ruffles and a sheer pink high-collared top" loading="lazy" /></a><figcaption>pink</figcaption></figure>
-          </div>
-        </div>
       </section>
 
       <!-- FORMS -->
@@ -1257,7 +1198,7 @@
             <button type="button" class="kui-show-code-toggle" data-show-code-target="join-form">Show code</button>
           </div>
           <div class="join-card">
-            <div class="join-pic"><img src="./assets/modeling/stripe-suit.jpg" alt="A tailored white pinstripe double-breasted jacket with sculpted shoulders, a black tie and white gloves" loading="lazy" /></div>
+            <div class="join-pic"><img src="./assets/futurism/albino-rings.jpg" alt="Close-up portrait of a model with pale features and metallic wire choker rings, wearing reflective black visor sunglasses" loading="lazy" /></div>
             <form class="join-form" id="join-form" novalidate>
               <div class="join-row">
                 <div class="join-field" data-kui="validate-shake on:manual">
@@ -1325,7 +1266,7 @@
           <figure class="gesture-arena is-flush">
             <div class="gesture-stage path-stage">
               <svg class="path-route" id="path-route" viewBox="0 -60 160 70" aria-hidden="true"><path d="M 0 0 C 40 -70 120 -70 160 0" /></svg>
-              <img class="path-rider" id="path-rider" src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile of a model with slicked platinum hair and stacked gold cube earrings" data-kui="path-arc viewbox:'0 -60 160 70' anchor:center 2400ms yoyo:true repeat:infinite" />
+              <img class="path-rider" id="path-rider" src="./assets/futurism/gold-helmet.jpg" alt="Portrait in a mirrored gold visor helmet and a gold chain collar" data-kui="path-arc viewbox:'0 -60 160 70' anchor:center 2400ms yoyo:true repeat:infinite" />
             </div>
             <figcaption class="switch-line" id="path-line"></figcaption>
           </figure>
@@ -1351,9 +1292,9 @@
           <div class="menu-stage" id="menu-stage">
             <div class="menu-bar">Atelier</div>
             <div class="menu-wall">
-              <img src="./assets/modeling/black-and-yellow.jpg" alt="A model in a black roll-neck and wide trousers embroidered with yellow ginkgo leaves, walking a runway" loading="lazy" />
-              <img src="./assets/modeling/green-monochrome.jpg" alt="A model in a green jumpsuit and white platform shoes, one knee raised, against a matching green wall" loading="lazy" />
-              <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, blue lipstick and cobalt fur gloves framing the face" loading="lazy" />
+              <img src="./assets/futurism/black-futurism.jpg" alt="Profile portrait of a model in a glossy black full-face helmet and black leather jacket" loading="lazy" />
+              <img src="./assets/futurism/strange-hat.jpg" alt="Profile portrait of a model in a glowing translucent sculptural headpiece" loading="lazy" />
+              <img src="./assets/futurism/gold-white-face.jpg" alt="Beauty portrait of a matte white face with molten gold dripping over the eyes, bold red lips" loading="lazy" />
             </div>
 
             <div class="menu-panel menu-drop" id="menu-drop" hidden data-kui="dropdown-open on:manual">
@@ -1424,16 +1365,16 @@
             <div class="gesture-stage mini-stage">
               <div class="mini-page" id="mini-page" data-scene="one" data-kui="page-fade 800ms on:enter">
                 <article class="mini-scene scene-one">
-                  <img src="./assets/modeling/teal-sculpted-hat.jpg" alt="Portrait of a model in a sculpted pale teal hat against a matching teal background" loading="lazy" />
-                  <h3>Spring millinery</h3>
+                  <img src="./assets/futurism/asian-white-visor.jpg" alt="Face under a white visor and helmet with a pink glow, white hair and a quilted high collar" loading="lazy" />
+                  <h3>White visor</h3>
                 </article>
                 <article class="mini-scene scene-two">
-                  <img src="./assets/modeling/blue-lip-gloves.jpg" alt="Beauty portrait with white curls, blue lipstick and cobalt fur gloves framing the face" loading="lazy" />
-                  <h3>Cobalt beauty</h3>
+                  <img src="./assets/futurism/red-fashion.jpg" alt="Face under a glossy crimson visor helmet with ringed earrings and a lip spike" loading="lazy" />
+                  <h3>Crimson visor</h3>
                 </article>
                 <article class="mini-scene scene-three">
-                  <img src="./assets/modeling/gold-cube-earrings.jpg" alt="Profile of a model with slicked platinum hair and stacked gold cube earrings" loading="lazy" />
-                  <h3>Gold objects</h3>
+                  <img src="./assets/futurism/futuristic_visor_hud.jpg" alt="Astronaut helmet with a glowing cyan HUD visor against warm night lights" loading="lazy" />
+                  <h3>Cyan HUD</h3>
                 </article>
               </div>
             </div>
@@ -1451,13 +1392,13 @@
             <div class="gesture-stage mini-stage">
               <div class="morph-stage" id="morph-stage">
                 <div class="morph-scene morph-list">
-                  <img src="./assets/modeling/black-and-yellow.jpg" alt="A model in a black roll-neck and wide trousers embroidered with yellow ginkgo leaves, walking a runway" data-kui="page-morph name:morph-shot" />
-                  <img src="./assets/modeling/lilac-turban.jpg" alt="Portrait of a model in a lilac turban and ribbed high collar on a violet background" loading="lazy" />
-                  <img src="./assets/modeling/pink-ruffle-crown.jpg" alt="Portrait of a model with a crown of pink ruffles and a sheer pink high-collared top" loading="lazy" />
+                  <img src="./assets/futurism/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey helmet with a mechanical ear piece" data-kui="page-morph name:morph-shot" />
+                  <img src="./assets/futurism/goldface.jpg" alt="Beauty portrait of a face in liquid gold silk" loading="lazy" />
+                  <img src="./assets/futurism/sunny-visor.jpg" alt="Close-up portrait of a model in a golden dome-shaped reflective visor" loading="lazy" />
                 </div>
                 <div class="morph-scene morph-detail">
-                  <img src="./assets/modeling/black-and-yellow.jpg" alt="A model in a black roll-neck and wide trousers embroidered with yellow ginkgo leaves, walking a runway" data-kui="page-morph name:morph-shot" />
-                  <h3>Ginkgo on black</h3>
+                  <img src="./assets/futurism/grey-robot.jpg" alt="Profile portrait of a model in a glossy grey helmet with a mechanical ear piece" data-kui="page-morph name:morph-shot" />
+                  <h3>Grey helmet</h3>
                 </div>
               </div>
             </div>
@@ -1712,19 +1653,6 @@
       }
       wirePause(document.querySelector('#cube-pause'), '#three-cube', ' cube')
       wirePause(document.querySelector('#curve-pause'), '.curve-loop', '')
-
-      // image-flight — the app owns the basket; it fills on landing, not on the click
-      var flightCount = document.querySelector('#flight-count')
-      var flightPic = document.querySelector('#flight-slot-pic')
-      document.querySelector('#flight-shelf').addEventListener('kui:finish', function (event) {
-        var source = event.target.closest('[data-kui-flight-source]')
-        if (!source) return
-        var picture = source.querySelector('img')
-        flightPic.src = picture.currentSrc || picture.src
-        flightPic.alt = picture.alt
-        flightPic.hidden = false
-        flightCount.textContent = String(Number(flightCount.textContent) + 1)
-      })
 
       // Forms. The library plays the effects; which field is wrong is the app's to say.
       var joinForm = document.querySelector('#join-form')

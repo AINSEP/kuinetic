@@ -286,29 +286,7 @@
   .motion-pause[aria-pressed='true'] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
   .motion-pause svg { width: 12px; height: 12px; fill: currentColor; }
 
-  /* ---------- G: line art ---------- */
-  .demo-card.is-full { grid-column: 1 / -1; }
-  .boil-row { flex: none; display: grid; background: #ffffff; }
-  @media (min-width: 560px) { .boil-row { grid-template-columns: repeat(3, 1fr); } }
-  /* The filter moves a picture's edges too, so each cell crops them away. */
-  .boil-cell { display: block; overflow: clip; }
-  .boil-row img { aspect-ratio: 1; transform: scale(1.04); }
-
-  /* ---------- L + S: loading bar, glass ---------- */
   @media (min-width: 560px) { .demo-card.is-wide { grid-column: span 2; } }
-  .transition-window { border: 1px solid var(--border); border-radius: 10px; overflow: clip; background: var(--bg); }
-  .transition-chrome { display: flex; gap: 5px; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--border); background: var(--surface); }
-  .transition-chrome span { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
-  .transition-view { padding: 1.35rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; min-height: 78px; justify-content: center; }
-  .view-bar { height: 9px; border-radius: 4px; background: var(--border); }
-  .view-bar-heading { width: 62%; height: 13px; background: var(--fg); }
-  .loading-track { height: 3px; background: var(--border); }
-  .loading-fill { height: 100%; width: 100%; background: var(--fg); }
-  .ambient-stage img.glass-photo { object-position: 50% 12%; }
-  .glass-panel { position: relative; align-self: end; width: 62%; margin-bottom: 1.25rem; padding: 1.4rem 1rem; text-align: center; color: #ffffff; font-weight: 700; }
-  /* This card sits beside a taller one: its body takes the spare height, not its caption. */
-  .demo-card.is-stretch .feedback-body { flex: 1 0 auto; justify-content: center; }
-  .demo-card.is-stretch figcaption { flex: none; }
 </style>
 </head>
 <body>
@@ -389,7 +367,7 @@
               <div class="ambient-border-pad">
                 <div class="ambient-border-ring" data-kui="gradient-rotate-border"></div>
                 <div class="ambient-border-inner">
-                  <img src="./assets/product/tech_earbuds_neon.jpg" alt="Matte white wireless earbuds case lit by red and blue neon gel lighting on a reflective dark desk" loading="lazy" />
+                  <img src="./assets/futurism/vr_headset_dark_studio.jpg" alt="Woman in a white sweatshirt and VR headset sitting in a black room with white strip lights and a checkerboard floor" loading="lazy" />
                 </div>
               </div>
               <figcaption>data-kui="gradient-rotate-border"</figcaption>
@@ -397,7 +375,7 @@
             <figure class="demo-card" data-show-code>
               <div class="ambient-border-pad" data-kui="beam-border-auto duration:12s">
                 <div class="ambient-border-inner">
-                  <img src="./assets/product/future-glasses.jpg" alt="Futuristic white smart glasses with dark reflective lenses, twin cameras on the temples, and a HUD readout visible in the lens" loading="lazy" />
+                  <img src="./assets/futurism/grey-robot.jpg" alt="Profile of a figure in a glossy black dome visor and headphones, with a black glove raised to the chin" loading="lazy" />
                 </div>
               </div>
               <figcaption>data-kui="beam-border-auto duration:12s" — hover/border family</figcaption>
@@ -406,7 +384,7 @@
               <div class="ambient-border-pad">
                 <div class="ambient-border-ring" data-kui="gradient-border from:purple to:yellow"></div>
                 <div class="ambient-border-inner">
-                  <img src="./assets/product/aesop_shampoo.jpg" alt="Aesop shampoo and conditioner bottles resting in a round leather tray, lit by warm directional sunlight with strong shadow" loading="lazy" />
+                  <img src="./assets/futurism/gold-helmet.jpg" alt="Portrait in a mirrored gold visor helmet with a chain-mail collar against a grey backdrop" loading="lazy" />
                 </div>
               </div>
               <figcaption>data-kui="gradient-border from:purple to:yellow"</figcaption>
@@ -414,7 +392,7 @@
             <figure class="demo-card" data-show-code>
               <div class="ambient-border-pad" data-kui="beam-border-auto color:gold duration:12s">
                 <div class="ambient-border-inner">
-                  <img src="./assets/product/kuinetic_spray.jpg" alt="White kUInetic-branded spray bottle mockup resting on a dark driftwood branch against a grey backdrop" loading="lazy" />
+                  <img src="./assets/futurism/asian-red-visor.jpg" alt="Portrait of a white-haired figure in a white suit with a glowing orange neon visor on a dark red background" loading="lazy" />
                 </div>
               </div>
               <figcaption>data-kui="beam-border-auto color:gold duration:12s"</figcaption>
@@ -865,59 +843,6 @@
         </div>
       </section>
 
-      <!-- G: LINE ART -->
-      <section id="line-art" data-od-id="line-art">
-        <div class="section-head">
-          <h2 data-kui="fade-up on:enter">G — Line art</h2>
-        </div>
-
-        <div class="matrix-group">
-          <p class="matrix-group-label">Hand-drawn wobble — 1</p>
-          <div class="demo-grid">
-            <figure class="demo-card is-full" data-show-code>
-              <div class="boil-row" id="boil-row" data-kui="line-boil amount:3 fps:10 target:img">
-                <span class="boil-cell"><img src="./assets/cartoon/cartoon-03.jpg" alt="Cartoon coffee cup with eyes, gloves and big shoes, walking and pointing up, in black ink" loading="lazy" /></span>
-                <span class="boil-cell"><img src="./assets/cartoon/cartoon-09.jpg" alt="Black and white cartoon wolf head sticker with its tongue hanging out" loading="lazy" /></span>
-                <span class="boil-cell"><img src="./assets/cartoon/cartoon-05.jpg" alt="Blue cartoon bomb in sunglasses, walking and making a peace sign, with a lit fuse" loading="lazy" /></span>
-              </div>
-              <figcaption>data-kui="line-boil amount:3 fps:10"</figcaption>
-            </figure>
-          </div>
-          <button type="button" class="motion-pause" id="boil-pause" aria-pressed="false"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" rx="1" /><rect x="7" y="1" width="3" height="10" rx="1" /></svg><span>Pause</span></button>
-        </div>
-      </section>
-
-      <!-- L + S: LOADING BAR, GLASS -->
-      <section id="loading-glass" data-od-id="loading-glass">
-        <div class="section-head">
-          <h2 data-kui="fade-up on:enter">L &amp; S — Loading bar and glass</h2>
-        </div>
-
-        <div class="demo-grid" data-kui="cascade:90ms">
-          <figure class="demo-card tone-b is-stretch" data-show-code>
-            <div class="feedback-body">
-              <div class="transition-window">
-                <div class="transition-chrome" aria-hidden="true"><span></span><span></span><span></span></div>
-                <div class="loading-track" aria-hidden="true"><div class="loading-fill" id="loading-fill" data-kui="loading-bar 1600ms on:enter"></div></div>
-                <div class="transition-view" aria-hidden="true">
-                  <div class="view-bar view-bar-heading"></div>
-                  <div class="view-bar"></div>
-                </div>
-              </div>
-              <button type="button" class="btn btn-ghost" id="btn-loading" style="align-self:flex-start; padding:0.5rem 0.9rem; font-size:0.8rem;">Load page</button>
-            </div>
-            <figcaption>data-kui="loading-bar"</figcaption>
-          </figure>
-          <figure class="demo-card is-wide" data-show-code>
-            <div class="ambient-stage">
-              <img class="glass-photo" src="./assets/cartoon/cartoon-14.jpg" alt="Cartoon figure in a teal number 33 jersey, an orange backwards cap and baggy jeans, walking" loading="lazy" />
-              <div class="glass-panel" data-kui="glass blur:14px">Frosted glass</div>
-            </div>
-            <figcaption>data-kui="glass"</figcaption>
-          </figure>
-        </div>
-      </section>
-
     </div>
   </main>
 
@@ -983,10 +908,6 @@
           })
         })
 
-        on('btn-loading', 'click', function () {
-          replay(document.getElementById('loading-fill'))
-        })
-
         // heart-fill and bookmark-fill: the click fills, the next click un-fills.
         document.querySelectorAll('.fill-toggle').forEach(function (button) {
           var solid = button.querySelector('[data-kui]')
@@ -1033,9 +954,6 @@
           if (paused) stroke.pause()
           else stroke.play()
           document.querySelectorAll('.loop-morph').forEach(function (el) { holdAttribute(el, paused) })
-        })
-        wirePause(document.getElementById('boil-pause'), function (paused) {
-          holdAttribute(document.getElementById('boil-row'), paused)
         })
 
         on('btn-shake', 'click', function () {

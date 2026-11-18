@@ -8,6 +8,11 @@ library should own it. Never call something "not the library's job" without grep
 
 ---
 
+## Owner reminders — 2026-11-18
+
+- [x] scroll.html "Progress & steps": swapped the two wipe pictures for dark-premium/dark-03 (Arko Bureau) and dark-04 (orange asterisk studio), 2026-11-18.
+- [ ] Demo pages: no multi-sentence "how it works" prose under demos — owner removed a batch from scroll.html on 2026-11-18 ("useless text"). Heading + contract line + Show code is enough.
+
 ## GSAP showcase study — owner's ask, 2026-11-05
 
 - [ ] **Be able to do what the sites on https://gsap.com/showcase/ do.** Owner: "The animations, the
